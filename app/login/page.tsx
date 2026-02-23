@@ -195,7 +195,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { setTheme, theme } = useTheme();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
