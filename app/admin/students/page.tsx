@@ -1,0 +1,517 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import {
+  Search,
+  Plus,
+  MoreHorizontal,
+  Filter,
+  Loader2,
+  AlertCircle,
+  Phone,
+  RotateCcw,
+  Info,
+  Trash,
+  Users,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+
+// Types
+interface Student {
+  _id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  status: string;
+  groups_count?: number;
+  groups?: any[];
+}
+
+export default function StudentsPage() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("All");
+
+  // --- QO'SHISH STATE ---
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // YANGI STATE TUZILMASI (Siz bergan JSON bo'yicha)
+  const [newStudent, setNewStudent] = useState({
+    first_name: "",
+    last_name: "",
+    phone: "",
+    groupId: "", // Parol yo'q, Guruh ID bor
+  });
+  const [addLoading, setAddLoading] = useState(false);
+
+  // --- O'CHIRISH (DELETE) STATE ---
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  // 1. DATA OLISH (FETCH)
+  const fetchStudents = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_URL}/api/student/get-all-students`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setStudents(res.data.data || res.data || []);
+    } catch (error) {
+      console.error("Xatolik:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  // 2. STUDENT QO'SHISH (YANGILANGAN PAYLOAD)
+  const handleAddStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+
+      // SIZ SO'RAGAN JSON FORMATI:
+      const payload = {
+        first_name: newStudent.first_name,
+        last_name: newStudent.last_name,
+        phone: newStudent.phone,
+        groups: [
+          {
+            group: newStudent.groupId, // Inputdan olingan ID
+          },
+        ],
+      };
+
+      console.log("Yuborilayotgan data:", payload);
+
+      await axios.post(`${API_URL}/api/student/create-student`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setIsAddModalOpen(false);
+      // Formani tozalash
+      setNewStudent({ first_name: "", last_name: "", phone: "", groupId: "" });
+      fetchStudents();
+      alert("Student muvaffaqiyatli qo'shildi!");
+    } catch (error: any) {
+      console.error("Add error:", error);
+      const errMsg =
+        error.response?.data?.message || "Qo'shishda xatolik yuz berdi";
+      alert(errMsg);
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  // 3. STUDENT O'CHIRISH
+  const openDeleteModal = (id: string) => {
+    setStudentToDelete(id);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+
+      await axios.delete(`${API_URL}/api/student/delete-student`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          _id: studentToDelete,
+        },
+      });
+
+      setIsDeleteModalOpen(false);
+      setStudentToDelete(null);
+      fetchStudents();
+      alert("Student o'chirildi!");
+    } catch (error: any) {
+      console.error("Delete error:", error);
+      alert(error.response?.data?.message || "O'chirishda xatolik");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleRestoreStudent = (id: string) => {
+    alert("Bu funksiya hali API ga ulanmagan");
+  };
+
+  // 4. FILTER VA QIDIRUV
+  const filteredStudents = students.filter((student) => {
+    const fName = (
+      student.first_name ||
+      (student as any).firstName ||
+      ""
+    ).toLowerCase();
+    const lName = (
+      student.last_name ||
+      (student as any).lastName ||
+      ""
+    ).toLowerCase();
+    const phone = (student.phone || "").toLowerCase();
+    const status = (student.status || "").toLowerCase();
+
+    let statusMatch = true;
+    if (filterStatus === "Yakunladi")
+      statusMatch = status.includes("yakunladi");
+    else if (filterStatus === "Tatilda")
+      statusMatch = status.includes("ta'tilda") || status.includes("tatilda");
+    else if (filterStatus === "Faol") statusMatch = status.includes("faol");
+
+    const searchLower = searchQuery.toLowerCase();
+    const searchMatch =
+      fName.includes(searchLower) ||
+      lName.includes(searchLower) ||
+      phone.includes(searchLower);
+
+    return statusMatch && searchMatch;
+  });
+
+  return (
+    // DARK MODE: Background va Text ranglari
+    <div className="p-6 space-y-6 bg-gray-50 dark:bg-slate-950 min-h-screen font-sans text-slate-800 dark:text-slate-200 transition-colors duration-300">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          Studentlar ro'yxati
+        </h1>
+
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          {/* Qidiruv */}
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-slate-400" />
+            <Input
+              placeholder="Qidirish..."
+              className="pl-9 bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-800 dark:text-white dark:placeholder-slate-500"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          {/* Qo'shish Tugmasi */}
+          <Button
+            className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-gray-200 flex gap-2 items-center"
+            onClick={() => setIsAddModalOpen(true)}
+          >
+            <Plus size={18} />{" "}
+            <span className="hidden sm:inline">Student Qo'shish</span>
+          </Button>
+
+          {/* Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="flex gap-2 min-w-[100px] justify-between dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+              >
+                {filterStatus} <Filter size={14} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-40 bg-white dark:bg-slate-900 dark:border-slate-800"
+            >
+              <DropdownMenuItem
+                className="dark:focus:bg-slate-800 dark:text-slate-200"
+                onClick={() => setFilterStatus("All")}
+              >
+                All
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="dark:focus:bg-slate-800 dark:text-slate-200"
+                onClick={() => setFilterStatus("Faol")}
+              >
+                Faol
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="dark:focus:bg-slate-800 dark:text-slate-200"
+                onClick={() => setFilterStatus("Yakunladi")}
+              >
+                Yakunladi
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="dark:focus:bg-slate-800 dark:text-slate-200"
+                onClick={() => setFilterStatus("Tatilda")}
+              >
+                Tatilda
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* JADVAL (TABLE) */}
+      <div className="rounded-md border border-gray-100 dark:border-slate-800 overflow-hidden shadow-sm bg-white dark:bg-slate-900">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 border-b dark:border-slate-800 uppercase font-medium">
+              <tr>
+                <th className="px-6 py-4">Ism</th>
+                <th className="px-6 py-4">Familiya</th>
+                <th className="px-6 py-4">Telefon raqam</th>
+                <th className="px-6 py-4 text-center">Guruhlar soni</th>
+                <th className="px-6 py-4">Holat</th>
+                <th className="px-6 py-4 text-right">Amallar</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-6 py-8 text-center bg-white dark:bg-slate-900"
+                  >
+                    <Loader2 className="animate-spin h-5 w-5 mx-auto text-gray-400 dark:text-slate-500" />
+                  </td>
+                </tr>
+              ) : filteredStudents.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-6 py-8 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900"
+                  >
+                    Ma'lumot topilmadi
+                  </td>
+                </tr>
+              ) : (
+                filteredStudents.map((student, index) => (
+                  <tr
+                    key={student._id || index}
+                    className="bg-white dark:bg-slate-900 hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-slate-100">
+                      {student.first_name || (student as any).firstName}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 dark:text-slate-300">
+                      {student.last_name || (student as any).lastName}
+                    </td>
+                    <td className="px-6 py-4 text-gray-600 dark:text-slate-400">
+                      {student.phone}
+                    </td>
+                    <td className="px-6 py-4 text-center text-gray-600 dark:text-slate-400">
+                      {student.groups_count || student.groups?.length || 0}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium 
+                        ${
+                          student.status?.includes("faol")
+                            ? "text-green-600 dark:text-green-400"
+                            : student.status?.includes("yakunladi")
+                            ? "text-gray-500 dark:text-gray-400"
+                            : student.status?.includes("ta'tilda")
+                            ? "text-yellow-600 dark:text-yellow-400"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {student.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-500 dark:text-slate-400 dark:hover:bg-slate-800"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="bg-white dark:bg-slate-900 w-48 shadow-lg border border-gray-100 dark:border-slate-800"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => openDeleteModal(student._id)}
+                            className="cursor-pointer py-2 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200"
+                          >
+                            <Trash className="mr-2 h-4 w-4" /> O'chirish
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleRestoreStudent(student._id)}
+                            className="cursor-pointer py-2 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200"
+                          >
+                            <RotateCcw className="mr-2 h-4 w-4" /> Orqaga
+                            qaytarish
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="cursor-pointer py-2 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200">
+                            <Info className="mr-2 h-4 w-4" /> Info
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 1. QO'SHISH MODALI (YANGILANGAN) */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-white dark:bg-slate-900 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="dark:text-white">
+              Yangi Student Qo'shish
+            </DialogTitle>
+            <DialogDescription className="dark:text-slate-400">
+              Tizimga yangi o'quvchi qo'shish uchun ma'lumotlarni to'ldiring.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddStudent} className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="dark:text-slate-300">Ism</Label>
+                <Input
+                  required
+                  placeholder="Alisher"
+                  className="dark:bg-slate-950 dark:border-slate-800 dark:text-white"
+                  value={newStudent.first_name}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, first_name: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="dark:text-slate-300">Familiya</Label>
+                <Input
+                  required
+                  placeholder="Yusupov"
+                  className="dark:bg-slate-950 dark:border-slate-800 dark:text-white"
+                  value={newStudent.last_name}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, last_name: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="dark:text-slate-300">Telefon raqam</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400 dark:text-slate-500" />
+                <Input
+                  required
+                  placeholder="+9989"
+                  className="pl-9 dark:bg-slate-950 dark:border-slate-800 dark:text-white"
+                  value={newStudent.phone}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, phone: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            {/* YANGI: Guruh ID Inputi */}
+            <div className="space-y-2">
+              <Label className="dark:text-slate-300">Guruh</Label>
+              <div className="relative">
+                <Users className="absolute left-3 top-3 h-4 w-4 text-gray-400 dark:text-slate-500" />
+                <Input
+                  required
+                  placeholder="Guruh nomi"
+                  className="pl-9 dark:bg-slate-950 dark:border-slate-800 dark:text-white"
+                  value={newStudent.groupId}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, groupId: e.target.value })
+                  }
+                />
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-500">
+                *O'quvchi biriktiriladigan guruhning ID raqami.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddModalOpen(false)}
+                className="dark:bg-slate-900 dark:border-slate-800 dark:text-white dark:hover:bg-slate-800"
+              >
+                Bekor qilish
+              </Button>
+              <Button
+                type="submit"
+                disabled={addLoading}
+                className="bg-slate-900 dark:bg-white dark:text-slate-900 dark:hover:bg-gray-200 text-white"
+              >
+                {addLoading && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}{" "}
+                Saqlash
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. O'CHIRISH MODALI */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="sm:max-w-[400px] bg-white dark:bg-slate-900 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-500">
+              <AlertCircle size={20} /> O'chirishni tasdiqlang
+            </DialogTitle>
+            <DialogDescription className="pt-2 dark:text-slate-400">
+              Haqiqatan ham bu studentni o'chirmoqchimisiz?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="dark:bg-slate-900 dark:border-slate-800 dark:text-white dark:hover:bg-slate-800"
+            >
+              Bekor qilish
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteStudent}
+              disabled={deleteLoading}
+              className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-700 dark:hover:bg-red-800"
+            >
+              {deleteLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Ha, o'chirish"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
