@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Table,
   TableBody,
@@ -21,68 +22,58 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 
-// Backenddan keladigan ma'lumotlar turi (Sizning kodingizga moslab)
+// Backenddan keladigan ma'lumotlar turi
 interface Manager {
-  _id: string; // Yoki id
-  first_name: string; // Sizning kodingizdagi nom
-  last_name: string; // Sizning kodingizdagi nom
+  _id: string;
+  first_name: string;
+  last_name: string;
   email: string;
   role: string;
   status: string;
 }
 
-export default function ManagersPage() {
-  const [managers, setManagers] = useState<Manager[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  // Next.js da .env faylni chaqirish
+// 1. API dan ma'lumot olib keluvchi alohida funksiya (Fetcher)
+const fetchManagers = async (): Promise<Manager[]> => {
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  useEffect(() => {
-    const fetchManagers = async () => {
-      try {
-        const token = localStorage.getItem("token");
+  // LocalStorage dan tokenni olish (Next.js da xato bermasligi uchun typeof window ishlatildi)
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-        // Agar API_URL bo'lmasa xatolik oldini olish
-        if (!API_URL) {
-          console.error("API URL topilmadi");
-          setLoading(false);
-          return;
-        }
+  if (!API_URL) {
+    throw new Error("API URL topilmadi");
+  }
 
-        const response = await fetch(`${API_URL}/api/staff/all-managers`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
+  const response = await fetch(`${API_URL}/api/staff/all-managers`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
 
-        if (!response.ok) {
-          throw new Error("Ma'lumotlarni olishda xatolik");
-        }
+  if (!response.ok) {
+    throw new Error("Ma'lumotlarni olishda xatolik yuz berdi");
+  }
 
-        const res = await response.json();
+  const res = await response.json();
 
-        // Sizning kodingizdagi logikani saqlab qoldim (res.data.data yoki res.data)
-        // Backend odatda { success: true, data: [...] } qaytaradi
-        const managersList = Array.isArray(res.data)
-          ? res.data
-          : Array.isArray(res)
-          ? res
-          : [];
-        setManagers(managersList);
-      } catch (err) {
-        console.error(err);
-        setError("Server bilan bog'lanishda xatolik yuz berdi");
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Backend javobini array ko'rinishida qaytarish
+  return Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
+};
 
-    fetchManagers();
-  }, [API_URL]);
+export default function ManagersPage() {
+  // 2. ASOSIY QISM: TanStack Query dan foydalanish
+  const {
+    data: managers = [], // Agar ma'lumot hali kelmagan bo'lsa, bosh array [] bo'lib turadi
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["managers"], // Shu kalit so'z orqali keshlanadi
+    queryFn: fetchManagers, // Yuqoridagi API zapros funksiyasi
+    staleTime: 5 * 60 * 1000, // 5 DAQIQA KESHLASH! Boshqa page'ga o'tib qaytsa, srazu chiqadi.
+  });
 
   // Statusni rangli chiqarish
   const getStatusBadge = (status: string) => {
@@ -104,13 +95,24 @@ export default function ManagersPage() {
     return <Badge variant="secondary">{status}</Badge>;
   };
 
-  if (loading)
+  // 3. Yuklanish va Xatolik holatlarini ko'rsatish
+  if (isLoading) {
     return (
       <div className="flex justify-center p-10">
         <Loader2 className="animate-spin" />
       </div>
     );
-  if (error) return <p className="text-red-500 p-6">{error}</p>;
+  }
+
+  if (isError) {
+    // xato bo'lsa error.message qilib chiqaramiz
+    return (
+      <p className="text-red-500 p-6">
+        {(error as Error).message ||
+          "Server bilan bog'lanishda xatolik yuz berdi"}
+      </p>
+    );
+  }
 
   return (
     <Card className="m-6">
@@ -135,7 +137,6 @@ export default function ManagersPage() {
             {managers.length > 0 ? (
               managers.map((m) => (
                 <TableRow key={m._id}>
-                  {/* Backenddan kelgan first_name va last_name ishlatilmoqda */}
                   <TableCell className="font-medium">{m.first_name}</TableCell>
                   <TableCell>{m.last_name}</TableCell>
                   <TableCell>{m.email}</TableCell>

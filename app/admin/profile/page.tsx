@@ -2,361 +2,301 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { Camera, Calendar, Loader2 } from "lucide-react";
+import { User, Calendar, Camera, Loader2 } from "lucide-react";
+import Cookies from "js-cookie";
+import toast from "react-hot-toast";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
-
-export default function ProfilePage() {
-  const [loading, setLoading] = useState(false);
-
-  const [profile, setProfile] = useState({
-    first_name: "Kachok",
-    last_name: "Ta'lim",
-    email: "usern88@mail.ru",
-    role: "manager",
-    createdAt: "2025-06-03",
-    avatar: "",
-  });
-
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isUploadingImg, setIsUploadingImg] = useState(false);
-  const [isPasswordSaving, setIsPasswordSaving] = useState(false);
-
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [passwords, setPasswords] = useState({
-    current_password: "",
-    new_password: "",
-  });
-
+const Profile = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getHeaders = (isFormData = false) => {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("token") : "";
-    const headers: any = {
-      Authorization: `Bearer ${token}`,
-    };
+  const [user, setUser] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-    if (!isFormData) {
-      headers["Content-Type"] = "application/json";
-    }
+  const [formData, setFormData] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+  });
 
-    return { headers };
-  };
+  const API_URL =
+    process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL || "";
+  const token = Cookies.get("token");
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      setLoading(true);
+    setIsMounted(true);
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
       try {
-        // const res = await axios.get(`${API_URL}/api/auth/me`, getHeaders());
-        // setProfile(res.data.data);
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setFormData({
+          first_name: parsedUser?.first_name || "",
+          last_name: parsedUser?.last_name || "",
+          email: parsedUser?.email || "",
+        });
       } catch (error) {
-        console.error("Profilni yuklashda xato:", error);
-      } finally {
-        setLoading(false);
+        console.error("User ma'lumotlarini o'qishda xatolik:", error);
       }
-    };
-    fetchProfile();
+    }
   }, []);
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingProfile(true);
-    try {
-      const payload = {
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        email: profile.email,
-      };
-
-      await axios.post(
-        `${API_URL}/api/auth/edit-profile`,
-        payload,
-        getHeaders()
-      );
-      alert("Profil ma'lumotlari muvaffaqiyatli saqlandi!");
-    } catch (error: any) {
-      alert(
-        error.response?.data?.message || "Profilni saqlashda xatolik yuz berdi"
-      );
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Rasm yuklash funksiyasi
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsUploadingImg(true);
+    setIsUploading(true);
+    const fd = new FormData();
+    fd.append("image", file);
+
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-
-      await axios.post(
+      const response = await axios.post(
         `${API_URL}/api/auth/edit-profile-img`,
-        formData,
-        getHeaders(true)
+        fd,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        }
       );
 
-      setProfile((prev) => ({ ...prev, avatar: URL.createObjectURL(file) }));
-      alert("Rasm muvaffaqiyatli yuklandi!");
-    } catch (error: any) {
-      alert(
-        error.response?.data?.message || "Rasmni yuklashda xatolik yuz berdi"
-      );
+      // Backenddan qaytgan javobni olamiz
+      const backendData =
+        response.data?.user || response.data?.data || response.data;
+
+      // Yangi rasm manzilini aniqlaymiz
+      const newImageUrl =
+        backendData?.image || response.data?.image || user?.image;
+
+      // Eski user ma'lumotlariga faqat rasmni qo'shamiz
+      const updatedUser = {
+        ...user,
+        ...(typeof backendData === "object" ? backendData : {}),
+        image: newImageUrl,
+      };
+
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      toast.success("Rasm muvaffaqiyatli yangilandi");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Xatolik yuz berdi");
     } finally {
-      setIsUploadingImg(false);
+      setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const handleUpdatePassword = async (e: React.FormEvent) => {
+  // Ma'lumotlarni yangilash funksiyasi
+  const handleInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsPasswordSaving(true);
+    setIsUpdating(true);
+
     try {
-      const payload = {
-        current_password: passwords.current_password,
-        new_password: passwords.new_password,
+      const response = await axios.post(
+        `${API_URL}/api/auth/edit-profile`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Backenddan qaytgan javobni olamiz
+      const backendData =
+        response.data?.user || response.data?.data || response.data;
+
+      // Eski user ma'lumotlariga yangi kiritilgan formani birlashtiramiz
+      const updatedUser = {
+        ...user, // Eskidan bor bo'lgan ma'lumotlar (rasm, id, rol, createdAt)
+        ...formData, // Biz hozirgina o'zgartirgan ism, familiya, email
+        ...(typeof backendData === "object" ? backendData : {}), // Backend yangi nimadir qaytargan bo'lsa, qo'shamiz
       };
 
-      await axios.post(
-        `${API_URL}/api/auth/edit-password`,
-        payload,
-        getHeaders()
-      );
-
-      alert("Parol muvaffaqiyatli o'zgartirildi!");
-      setIsPasswordModalOpen(false);
-      setPasswords({ current_password: "", new_password: "" });
-    } catch (error: any) {
-      alert(
-        error.response?.data?.message ||
-          "Parolni o'zgartirishda xatolik yuz berdi"
-      );
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      toast.success("Ma'lumotlar muvaffaqiyatli yangilandi");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Xatolik yuz berdi");
     } finally {
-      setIsPasswordSaving(false);
+      setIsUpdating(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setProfile({ ...profile, [e.target.name]: e.target.value });
-  };
+  if (!isMounted) return null;
+  if (!user)
+    return (
+      <div className="p-10 text-center text-gray-500 dark:text-gray-400 font-medium transition-colors">
+        Yuklanmoqda...
+      </div>
+    );
 
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
-      {/* YUQORI QISM */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-6 shadow-sm flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 transition-colors">
-        <div className="flex flex-col sm:flex-row items-center gap-6">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 border-2 border-white dark:border-gray-700 shadow-md relative">
-              <img
-                src={profile.avatar}
-                alt="Profile Avatar"
-                className={`w-full h-full object-cover ${
-                  isUploadingImg ? "opacity-50" : ""
-                }`}
-              />
-              {isUploadingImg && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-gray-800 dark:text-gray-200" />
+    <div className="max-w-5xl mx-auto space-y-6 pb-20 font-sans text-gray-900 dark:text-gray-100 transition-colors">
+      {/* YUQORI QISM: FOYDALANUVCHI KARTOCHKASI */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm transition-colors">
+        <div className="flex items-center gap-6">
+          {/* Avatar qismi */}
+          <div className="relative w-max shrink-0">
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center relative transition-colors">
+              {isUploading && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+                  <Loader2 className="animate-spin text-white" size={24} />
                 </div>
+              )}
+              {user?.image ? (
+                <img
+                  src={user.image}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <User size={40} className="text-gray-400 dark:text-gray-500" />
               )}
             </div>
 
+            {/* Kamera tugmasi */}
             <button
-              type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingImg}
-              className="absolute bottom-0 right-0 bg-black dark:bg-gray-700 text-white p-2 rounded-full border-2 border-white dark:border-gray-800 hover:bg-gray-800 dark:hover:bg-gray-600 transition shadow-sm"
+              disabled={isUploading}
+              className="absolute bottom-0 right-0 bg-[#18181b] dark:bg-white text-white dark:text-black p-2 rounded-full border-[3px] border-white dark:border-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50 z-10 shadow-md"
             >
-              <Camera className="w-4 h-4" />
+              <Camera size={14} />
             </button>
-
             <input
               type="file"
               ref={fileInputRef}
-              onChange={handleImageChange}
-              accept="image/*"
+              onChange={handleFileSelect}
               className="hidden"
+              accept="image/*"
             />
           </div>
 
-          <div className="text-center sm:text-left space-y-1">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {profile.first_name} {profile.last_name}
+          {/* Ism va ma'lumotlar */}
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white transition-colors">
+              {user?.first_name} {user?.last_name}
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm">
-              {profile.email}
+            <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base transition-colors">
+              {user?.email}
             </p>
-            <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs text-gray-500 dark:text-gray-400 mt-2">
-              <Calendar className="w-4 h-4" />
-              <span>Qo'shilgan: {profile.createdAt}</span>
-            </div>
+            <p className="text-gray-500 dark:text-gray-500 text-xs md:text-sm flex items-center gap-1.5 mt-1 transition-colors">
+              <Calendar size={14} />
+              Qo'shilgan:{" "}
+              {user?.createdAt
+                ? new Date(user.createdAt).toISOString().split("T")[0]
+                : "2024-01-01"}
+            </p>
           </div>
         </div>
 
-        <span className="bg-red-600 dark:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md capitalize">
-          {profile.role}
-        </span>
+        {/* Rol (Badge) */}
+        <div className="bg-[#e11d48] text-white px-3 py-1 md:px-4 md:py-1.5 rounded-full text-xs md:text-sm font-medium tracking-wide">
+          {user?.role || "manager"}
+        </div>
       </div>
 
-      {/* PASTKI QISM */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 shadow-sm transition-colors">
-        <div className="mb-6">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+      {/* PASTKI QISM: MA'LUMOTLARNI TAHRIRLASH */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 md:p-8 shadow-sm transition-colors">
+        <div className="mb-6 md:mb-8">
+          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white transition-colors">
             Profil ma'lumotlari
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 transition-colors">
             Shaxsiy ma'lumotlaringizni yangilashingiz mumkin.
           </p>
         </div>
 
-        <form onSubmit={handleUpdateProfile} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="first_name">Ism</Label>
-              <Input
-                id="first_name"
-                name="first_name"
-                value={profile.first_name}
-                onChange={handleInputChange}
+        <form onSubmit={handleInfoSubmit}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            {/* Ism */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
+                Ism
+              </label>
+              <input
+                type="text"
+                value={formData.first_name}
+                onChange={(e) =>
+                  setFormData({ ...formData, first_name: e.target.value })
+                }
+                className="w-full px-4 py-2.5 bg-transparent border border-gray-200 dark:border-gray-800 rounded-xl text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 focus:border-transparent transition-all"
                 required
-                className="bg-white dark:bg-gray-950 dark:border-gray-800 dark:text-gray-100"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="last_name">Familiya</Label>
-              <Input
-                id="last_name"
-                name="last_name"
-                value={profile.last_name}
-                onChange={handleInputChange}
+            {/* Familiya */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
+                Familiya
+              </label>
+              <input
+                type="text"
+                value={formData.last_name}
+                onChange={(e) =>
+                  setFormData({ ...formData, last_name: e.target.value })
+                }
+                className="w-full px-4 py-2.5 bg-transparent border border-gray-200 dark:border-gray-800 rounded-xl text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 focus:border-transparent transition-all"
                 required
-                className="bg-white dark:bg-gray-950 dark:border-gray-800 dark:text-gray-100"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
+            {/* Email */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
+                Email
+              </label>
+              <input
                 type="email"
-                name="email"
-                value={profile.email}
-                onChange={handleInputChange}
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                className="w-full px-4 py-2.5 bg-transparent border border-gray-200 dark:border-gray-800 rounded-xl text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 focus:border-transparent transition-all"
                 required
-                className="bg-white dark:bg-gray-950 dark:border-gray-800 dark:text-gray-100"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="role">Rol</Label>
-              <Input
-                id="role"
-                name="role"
-                value={profile.role}
+            {/* Rol */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
+                Rol
+              </label>
+              <input
+                type="text"
+                value={user?.role || "manager"}
                 readOnly
-                className="bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl text-sm md:text-base text-gray-500 dark:text-gray-500 bg-gray-50 dark:bg-gray-950 focus:outline-none cursor-not-allowed transition-colors"
               />
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-end items-center gap-3 pt-6">
-            <Button
+          {/* Tugmalar */}
+          <div className="flex flex-col sm:flex-row justify-end gap-4 mt-10">
+            <button
               type="button"
-              onClick={() => setIsPasswordModalOpen(true)}
-              className="w-full sm:w-auto bg-black dark:bg-gray-800 hover:bg-gray-800 dark:hover:bg-gray-700 text-white"
+              className="px-6 py-2.5 bg-[#18181b] dark:bg-white text-white dark:text-black rounded-xl text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
             >
               Parol ni O'zgartirish
-            </Button>
+            </button>
 
-            <Button
+            <button
               type="submit"
-              disabled={isSavingProfile}
-              className="w-full sm:w-auto bg-black dark:bg-gray-800 hover:bg-gray-800 dark:hover:bg-gray-700 text-white min-w-[120px]"
+              disabled={isUpdating}
+              className="flex items-center justify-center gap-2 px-6 py-2.5 bg-[#18181b] dark:bg-white text-white dark:text-black rounded-xl text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {isSavingProfile && (
-                <Loader2 className="mr-2 w-4 h-4 animate-spin" />
-              )}
+              {isUpdating && <Loader2 className="animate-spin" size={16} />}
               O'zgartirish
-            </Button>
+            </button>
           </div>
         </form>
       </div>
-
-      <Dialog open={isPasswordModalOpen} onOpenChange={setIsPasswordModalOpen}>
-        <DialogContent className="sm:max-w-[400px] bg-white dark:bg-gray-900 border dark:border-gray-800 text-gray-900 dark:text-gray-100">
-          <DialogHeader>
-            <DialogTitle>Parolni o'zgartirish</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleUpdatePassword} className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Joriy parol</Label>
-              <Input
-                type="password"
-                required
-                value={passwords.current_password}
-                onChange={(e) =>
-                  setPasswords({
-                    ...passwords,
-                    current_password: e.target.value,
-                  })
-                }
-                className="bg-white dark:bg-gray-950 dark:border-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Yangi parol</Label>
-              <Input
-                type="password"
-                required
-                minLength={8}
-                value={passwords.new_password}
-                onChange={(e) =>
-                  setPasswords({ ...passwords, new_password: e.target.value })
-                }
-                className="bg-white dark:bg-gray-950 dark:border-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <DialogFooter className="pt-2 flex sm:justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsPasswordModalOpen(false)}
-                className="w-full sm:w-auto dark:border-gray-700 dark:text-gray-300"
-              >
-                Bekor qilish
-              </Button>
-              <Button
-                type="submit"
-                disabled={isPasswordSaving}
-                className="w-full sm:w-auto bg-black dark:bg-gray-800 text-white hover:bg-gray-800 dark:hover:bg-gray-700"
-              >
-                {isPasswordSaving && (
-                  <Loader2 className="mr-2 w-4 h-4 animate-spin" />
-                )}
-                Saqlash
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
-}
+};
+
+export default Profile;

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search,
   Plus,
@@ -54,8 +55,10 @@ interface Teacher {
 }
 
 export default function Teachers() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient(); // Keshni boshqarish uchun
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  // Qidiruv va Filtr state lari
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
 
@@ -67,72 +70,63 @@ export default function Teachers() {
     email: "",
     password: "",
   });
-  const [addLoading, setAddLoading] = useState(false);
 
   // --- TAHRIRLASH (EDIT) STATE ---
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<any>(null);
-  const [editLoading, setEditLoading] = useState(false);
 
   // --- O'CHIRISH (DELETE) STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<string | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-  // 1. DATA OLISH (FETCH)
-  const fetchTeachers = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
+  // 1. DATA OLISH (FETCH) - TanStack Query
+  const { data: teachers = [], isLoading } = useQuery({
+    queryKey: ["teachers"],
+    queryFn: async () => {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const res = await axios.get(`${API_URL}/api/teacher/get-all-teachers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setTeachers(res.data.data || res.data || []);
-    } catch (error) {
-      console.error("Xatolik:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data.data || res.data || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 daqiqa davomida keshlanadi, kuttirmaydi!
+  });
 
-  useEffect(() => {
-    fetchTeachers();
-  }, []);
-
-  // 2. TEACHER QO'SHISH
-  const handleAddTeacher = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddLoading(true);
-    try {
+  // 2. TEACHER QO'SHISH - Mutation
+  const addMutation = useMutation({
+    mutationFn: async (payload: any) => {
       const token = localStorage.getItem("token");
-      const today = new Date().toISOString().split("T")[0];
-      const payload = {
-        ...newTeacher,
-        role: "teacher",
-        work_date: today,
-        status: "faol",
-        active: true,
-        is_deleted: false,
-      };
-
-      await axios.post(`${API_URL}/api/staff/create-teacher`, payload, {
+      return axios.post(`${API_URL}/api/staff/create-teacher`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teachers"] }); // Ro'yxatni yangilash
       setIsAddModalOpen(false);
       setNewTeacher({ first_name: "", last_name: "", email: "", password: "" });
-      fetchTeachers();
       alert("Ustoz qo'shildi!");
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Xatolik yuz berdi");
-    } finally {
-      setAddLoading(false);
-    }
+    },
+  });
+
+  const handleAddTeacher = (e: React.FormEvent) => {
+    e.preventDefault();
+    const today = new Date().toISOString().split("T")[0];
+    const payload = {
+      ...newTeacher,
+      role: "teacher",
+      work_date: today,
+      status: "faol",
+      active: true,
+      is_deleted: false,
+    };
+    addMutation.mutate(payload);
   };
 
-  // 3. TEACHER TAHRIRLASH
+  // 3. TEACHER TAHRIRLASH - Mutation
   const openEditModal = (teacher: Teacher) => {
     setEditingTeacher({
       _id: teacher._id,
@@ -144,67 +138,68 @@ export default function Teachers() {
     setIsEditModalOpen(true);
   };
 
-  const handleUpdateTeacher = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEditLoading(true);
-    try {
+  const editMutation = useMutation({
+    mutationFn: async (updatedTeacher: any) => {
       const token = localStorage.getItem("token");
-      await axios.put(`${API_URL}/api/teacher/create-teacher`, editingTeacher, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
+      return axios.post(
+        `${API_URL}/api/teacher/create-teacher`,
+        updatedTeacher,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teachers"] });
       setIsEditModalOpen(false);
       setEditingTeacher(null);
-      fetchTeachers();
       alert("Ustoz ma'lumotlari yangilandi!");
-    } catch (error: any) {
-      console.error("Update error:", error);
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Yangilashda xatolik");
-    } finally {
-      setEditLoading(false);
-    }
+    },
+  });
+
+  const handleUpdateTeacher = (e: React.FormEvent) => {
+    e.preventDefault();
+    editMutation.mutate(editingTeacher);
   };
 
-  // 4. ADMIN O'CHIRISH
+  // 4. TEACHER O'CHIRISH - Mutation
   const openDeleteModal = (id: string) => {
     setTeacherToDelete(id);
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteTeacher = async () => {
-    if (!teacherToDelete) return;
-    setDeleteLoading(true);
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const token = localStorage.getItem("token");
-      await axios.delete(`${API_URL}/api/teacher/fire-teacher`, {
+      return axios.delete(`${API_URL}/api/teacher/fire-teacher`, {
         headers: { Authorization: `Bearer ${token}` },
-        data: { _id: teacherToDelete },
+        data: { _id: id },
       });
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teachers"] });
       setIsDeleteModalOpen(false);
       setTeacherToDelete(null);
-      fetchTeachers();
       alert("Ustoz o'chirildi!");
-    } catch (error: any) {
-      console.error("Delete error:", error);
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "O'chirishda xatolik");
-    } finally {
-      setDeleteLoading(false);
+    },
+  });
+
+  const handleDeleteTeacher = () => {
+    if (teacherToDelete) {
+      deleteMutation.mutate(teacherToDelete);
     }
   };
 
   // 5. FILTER VA QIDIRUV
-  const filteredTeachers = teachers.filter((teacher) => {
-    const fName = (
-      teacher.first_name ||
-      (teacher as any).firstName ||
-      ""
-    ).toLowerCase();
-    const lName = (
-      teacher.last_name ||
-      (teacher as any).lastName ||
-      ""
-    ).toLowerCase();
+  const filteredTeachers = teachers.filter((teacher: any) => {
+    const fName = (teacher.first_name || teacher.firstName || "").toLowerCase();
+    const lName = (teacher.last_name || teacher.lastName || "").toLowerCase();
     const email = (teacher.email || "").toLowerCase();
     const status = (teacher.status || "").toLowerCase();
 
@@ -353,7 +348,7 @@ export default function Teachers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
+                {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
                       <Loader2 className="animate-spin h-5 w-5 mx-auto text-gray-400 dark:text-gray-500" />
@@ -369,16 +364,16 @@ export default function Teachers() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredTeachers.map((teacher, index) => (
+                  filteredTeachers.map((teacher: any, index: number) => (
                     <TableRow
                       key={teacher._id || index}
                       className="dark:border-gray-800 dark:hover:bg-gray-800/50 transition-colors"
                     >
                       <TableCell className="font-medium dark:text-gray-200">
-                        {teacher.first_name || (teacher as any).firstName}
+                        {teacher.first_name || teacher.firstName}
                       </TableCell>
                       <TableCell className="dark:text-gray-300">
-                        {teacher.last_name || (teacher as any).lastName}
+                        {teacher.last_name || teacher.lastName}
                       </TableCell>
                       <TableCell className="dark:text-gray-300">
                         {teacher.email}
@@ -501,10 +496,10 @@ export default function Teachers() {
               </Button>
               <Button
                 type="submit"
-                disabled={addLoading}
+                disabled={addMutation.isPending}
                 className="bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
-                {addLoading && (
+                {addMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}{" "}
                 Saqlash
@@ -594,10 +589,10 @@ export default function Teachers() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={editLoading}
+                  disabled={editMutation.isPending}
                   className="bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
                 >
-                  {editLoading && (
+                  {editMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}{" "}
                   Yangilash
@@ -631,10 +626,10 @@ export default function Teachers() {
             <Button
               variant="destructive"
               onClick={handleDeleteTeacher}
-              disabled={deleteLoading}
+              disabled={deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-600 dark:hover:bg-red-700"
             >
-              {deleteLoading ? (
+              {deleteMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 "Ha, o'chirish"

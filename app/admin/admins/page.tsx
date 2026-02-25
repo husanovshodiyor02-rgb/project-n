@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search,
   Plus,
@@ -54,8 +55,10 @@ interface Admin {
 }
 
 export default function AdminsPage() {
-  const [admins, setAdmins] = useState<Admin[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient(); // Keshni tozalash va yangilash uchun kerak
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  // Qidiruv va Filtr state lari
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
 
@@ -67,72 +70,64 @@ export default function AdminsPage() {
     email: "",
     password: "",
   });
-  const [addLoading, setAddLoading] = useState(false);
 
   // --- TAHRIRLASH (EDIT) STATE ---
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<any>(null);
-  const [editLoading, setEditLoading] = useState(false);
 
   // --- O'CHIRISH (DELETE) STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [adminToDelete, setAdminToDelete] = useState<string | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-  // 1. DATA OLISH (FETCH)
-  const fetchAdmins = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
+  // 1. DATA OLISH (FETCH) - TanStack Query yordamida
+  const { data: admins = [], isLoading } = useQuery({
+    queryKey: ["admins"],
+    queryFn: async () => {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const res = await axios.get(`${API_URL}/api/staff/all-admins`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setAdmins(res.data.data || res.data || []);
-    } catch (error) {
-      console.error("Xatolik:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data.data || res.data || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 daqiqa davomida keshda ushlab turadi
+  });
 
-  useEffect(() => {
-    fetchAdmins();
-  }, []);
-
-  // 2. ADMIN QO'SHISH
-  const handleAddAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddLoading(true);
-    try {
+  // 2. ADMIN QO'SHISH - Mutation
+  const addMutation = useMutation({
+    mutationFn: async (payload: any) => {
       const token = localStorage.getItem("token");
-      const today = new Date().toISOString().split("T")[0];
-      const payload = {
-        ...newAdmin,
-        role: "admin",
-        work_date: today,
-        status: "faol",
-        active: true,
-        is_deleted: false,
-      };
-
-      await axios.post(`${API_URL}/api/staff/create-admin`, payload, {
+      return axios.post(`${API_URL}/api/staff/create-admin`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
+    },
+    onSuccess: () => {
+      // Muvaffaqiyatli qo'shilsa, keshni yangilaymiz (yangi ro'yxat srazu chiqadi)
+      queryClient.invalidateQueries({ queryKey: ["admins"] });
       setIsAddModalOpen(false);
       setNewAdmin({ first_name: "", last_name: "", email: "", password: "" });
-      fetchAdmins();
       alert("Admin qo'shildi!");
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Xatolik yuz berdi");
-    } finally {
-      setAddLoading(false);
-    }
+    },
+  });
+
+  const handleAddAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const today = new Date().toISOString().split("T")[0];
+    const payload = {
+      ...newAdmin,
+      role: "admin",
+      work_date: today,
+      status: "faol",
+      active: true,
+      is_deleted: false,
+    };
+    addMutation.mutate(payload); // Zaprosni jo'natish
   };
 
-  // 3. ADMIN TAHRIRLASH
+  // 3. ADMIN TAHRIRLASH - Mutation
   const openEditModal = (admin: Admin) => {
     setEditingAdmin({
       _id: admin._id,
@@ -144,67 +139,64 @@ export default function AdminsPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleUpdateAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEditLoading(true);
-    try {
+  const editMutation = useMutation({
+    mutationFn: async (updatedAdmin: any) => {
       const token = localStorage.getItem("token");
-      await axios.put(`${API_URL}/api/staff/edited-admin`, editingAdmin, {
+      return axios.post(`${API_URL}/api/staff/edited-admin`, updatedAdmin, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admins"] });
       setIsEditModalOpen(false);
       setEditingAdmin(null);
-      fetchAdmins();
       alert("Admin ma'lumotlari yangilandi!");
-    } catch (error: any) {
-      console.error("Update error:", error);
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Yangilashda xatolik");
-    } finally {
-      setEditLoading(false);
-    }
+    },
+  });
+
+  const handleUpdateAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    editMutation.mutate(editingAdmin); // Jo'natish
   };
 
-  // 4. ADMIN O'CHIRISH
+  // 4. ADMIN O'CHIRISH - Mutation
   const openDeleteModal = (id: string) => {
     setAdminToDelete(id);
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteAdmin = async () => {
-    if (!adminToDelete) return;
-    setDeleteLoading(true);
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const token = localStorage.getItem("token");
-      await axios.delete(`${API_URL}/api/staff/deleted-admin`, {
+      return axios.delete(`${API_URL}/api/staff/deleted-admin`, {
         headers: { Authorization: `Bearer ${token}` },
-        data: { _id: adminToDelete },
+        data: { _id: id },
       });
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admins"] });
       setIsDeleteModalOpen(false);
       setAdminToDelete(null);
-      fetchAdmins();
       alert("Admin o'chirildi!");
-    } catch (error: any) {
-      console.error("Delete error:", error);
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "O'chirishda xatolik");
-    } finally {
-      setDeleteLoading(false);
+    },
+  });
+
+  const handleDeleteAdmin = () => {
+    if (adminToDelete) {
+      deleteMutation.mutate(adminToDelete); // Jo'natish
     }
   };
 
-  // 5. FILTER VA QIDIRUV
-  const filteredAdmins = admins.filter((admin) => {
-    const fName = (
-      admin.first_name ||
-      (admin as any).firstName ||
-      ""
-    ).toLowerCase();
-    const lName = (
-      admin.last_name ||
-      (admin as any).lastName ||
-      ""
-    ).toLowerCase();
+  // 5. FILTER VA QIDIRUV (Keshdagi tayyor admins ro'yxati ichidan qidiriladi)
+  const filteredAdmins = admins.filter((admin: any) => {
+    const fName = (admin.first_name || admin.firstName || "").toLowerCase();
+    const lName = (admin.last_name || admin.lastName || "").toLowerCase();
     const email = (admin.email || "").toLowerCase();
     const status = (admin.status || "").toLowerCase();
 
@@ -346,7 +338,7 @@ export default function AdminsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
+                {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
                       <Loader2 className="animate-spin h-5 w-5 mx-auto text-gray-400 dark:text-gray-500" />
@@ -362,16 +354,16 @@ export default function AdminsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredAdmins.map((admin, index) => (
+                  filteredAdmins.map((admin: any, index: number) => (
                     <TableRow
                       key={admin._id || index}
                       className="dark:border-gray-800 dark:hover:bg-gray-800/50 transition-colors"
                     >
                       <TableCell className="font-medium dark:text-gray-200">
-                        {admin.first_name || (admin as any).firstName}
+                        {admin.first_name || admin.firstName}
                       </TableCell>
                       <TableCell className="dark:text-gray-300">
-                        {admin.last_name || (admin as any).lastName}
+                        {admin.last_name || admin.lastName}
                       </TableCell>
                       <TableCell className="dark:text-gray-300">
                         {admin.email}
@@ -494,10 +486,10 @@ export default function AdminsPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={addLoading}
+                disabled={addMutation.isPending} // TanStack holatini o'qish
                 className="bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
-                {addLoading && (
+                {addMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}{" "}
                 Saqlash
@@ -581,10 +573,10 @@ export default function AdminsPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={editLoading}
+                  disabled={editMutation.isPending}
                   className="bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
                 >
-                  {editLoading && (
+                  {editMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}{" "}
                   Yangilash
@@ -618,10 +610,10 @@ export default function AdminsPage() {
             <Button
               variant="destructive"
               onClick={handleDeleteAdmin}
-              disabled={deleteLoading}
+              disabled={deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-600 dark:hover:bg-red-700"
             >
-              {deleteLoading ? (
+              {deleteMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 "Ha, o'chirish"

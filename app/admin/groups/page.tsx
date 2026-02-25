@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
   MoreHorizontal,
@@ -38,52 +39,39 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
-// Types (Backend maydonlari to'liq hisobga olindi)
+// Types
 interface Group {
   _id: string;
   name?: string;
   group_name?: string;
-  teacher?:
-    | {
-        _id: string;
-        first_name: string;
-        last_name: string;
-      }
-    | string;
+  teacher?: any;
   students?: any[];
   student_count?: number;
-
-  // Boshlanish vaqti kelishi mumkin bo'lgan variantlar
   start_date?: string;
   started_group?: string;
   createdAt?: string;
-
-  // Tugash vaqti kelishi mumkin bo'lgan variantlar
   end_date?: string | null;
   ended_group?: string | null;
   date?: string | null;
 }
 
 export default function GroupsPage() {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // Yordamchi ma'lumotlar state'i (Kurslar va Ustozlar ro'yxati guruh ochish uchun)
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
+  const getToken = () =>
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // --- 1. GURUH QO'SHISH STATE ---
+  // --- 1. GURUH QO'SHISH STATE (Rasmdagidek: nomi, ustoz, email) ---
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addLoading, setAddLoading] = useState(false);
   const [newGroup, setNewGroup] = useState({
-    course_id: "",
+    name: "",
     teacher: "",
-    started_group: "",
+    email: "",
   });
 
   // --- 2. TUGASH VAQTINI BELGILASH STATE ---
   const [isEndDateModalOpen, setIsEndDateModalOpen] = useState(false);
-  const [endDateLoading, setEndDateLoading] = useState(false);
   const [endDateData, setEndDateData] = useState({
     _id: "",
     date: "",
@@ -91,116 +79,95 @@ export default function GroupsPage() {
 
   // --- 3. GURUHNI TUGATISH STATE ---
   const [isEndGroupModalOpen, setIsEndGroupModalOpen] = useState(false);
-  const [endGroupLoading, setEndGroupLoading] = useState(false);
   const [groupToEnd, setGroupToEnd] = useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  // ==========================================
+  // QUERIES: MA'LUMOTLARNI OLIB KELISH
+  // ==========================================
 
-  // Ma'lumotlarni yuklash
-  const fetchGroups = async () => {
-    setLoading(true);
-    try {
+  const { data: groups = [], isLoading: groupsLoading } = useQuery({
+    queryKey: ["groups"],
+    queryFn: async () => {
       const res = await axios.get(`${API_URL}/api/group/get-all-group`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
-      setGroups(res.data.data || res.data || []);
-    } catch (error) {
-      console.error("Guruhlarni yuklashda xatolik:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data.data || res.data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const fetchAuxData = async () => {
-    try {
-      // Ustozlar ro'yxatini yuklash (Dropdown uchun)
-      const resTeachers = await axios.get(
-        `${API_URL}/api/teacher/get-all-teachers`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      setTeachers(resTeachers.data.data || resTeachers.data || []);
+  // ==========================================
+  // MUTATIONS: MA'LUMOTLARNI O'ZGARTIRISH
+  // ==========================================
 
-      // Kurslar ro'yxatini yuklash
-      const resCourses = await axios.get(
-        `${API_URL}/api/course/get-all-courses`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      setCourses(resCourses.data.data || resCourses.data || []);
-    } catch (error) {
-      console.error("Ustoz/Kurslarni yuklashda xatolik:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchGroups();
-    fetchAuxData();
-  }, []);
-
-  // --- API: GURUH YARATISH ---
-  const handleCreateGroup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddLoading(true);
-    try {
-      await axios.post(`${API_URL}/api/group/create-group`, newGroup, {
-        headers: { Authorization: `Bearer ${token}` },
+  // 1. GURUH YARATISH
+  const addMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      return axios.post(`${API_URL}/api/group/create-group`, payload, {
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
       setIsAddModalOpen(false);
-      setNewGroup({ course_id: "", teacher: "", started_group: "" });
-      fetchGroups();
+      setNewGroup({ name: "", teacher: "", email: "" });
       alert("Guruh muvaffaqiyatli qo'shildi!");
-    } catch (error: any) {
-      console.error("Guruh ochishda xatolik:", error);
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Xatolik yuz berdi");
-    } finally {
-      setAddLoading(false);
-    }
+    },
+  });
+
+  const handleCreateGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    addMutation.mutate(newGroup);
   };
 
-  // --- API: TUGASH VAQTINI BELGILASH ---
-  const handleEditEndDate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEndDateLoading(true);
-    try {
-      await axios.put(`${API_URL}/api/group/edit-end-group`, endDateData, {
-        headers: { Authorization: `Bearer ${token}` },
+  // 2. TUGASH VAQTINI BELGILASH
+  const editEndDateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      return axios.put(`${API_URL}/api/group/edit-end-group`, payload, {
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
       setIsEndDateModalOpen(false);
       setEndDateData({ _id: "", date: "" });
-      fetchGroups();
       alert("Tugash vaqti belgilandi!");
-    } catch (error: any) {
-      console.error("Tugash vaqtini belgilashda xatolik:", error);
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Xatolik yuz berdi");
-    } finally {
-      setEndDateLoading(false);
-    }
+    },
+  });
+
+  const handleEditEndDate = (e: React.FormEvent) => {
+    e.preventDefault();
+    editEndDateMutation.mutate(endDateData);
   };
 
-  // --- API: GURUHNI TUGATISH ---
-  const handleEndGroup = async () => {
-    if (!groupToEnd) return;
-    setEndGroupLoading(true);
-    try {
-      await axios.post(
-        `${API_URL}/api/group/end-group`,
-        { _id: groupToEnd },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+  // 3. GURUHNI TUGATISH
+  const endGroupMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return axios.delete(`${API_URL}/api/group/end-group`, {
+        data: { _id: id },
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
       setIsEndGroupModalOpen(false);
       setGroupToEnd(null);
-      fetchGroups();
       alert("Guruh tugatildi!");
-    } catch (error: any) {
-      console.error("Guruhni tugatishda xatolik:", error);
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Xatolik yuz berdi");
-    } finally {
-      setEndGroupLoading(false);
+    },
+  });
+
+  const handleEndGroup = () => {
+    if (groupToEnd) {
+      endGroupMutation.mutate(groupToEnd);
     }
   };
 
@@ -244,7 +211,7 @@ export default function GroupsPage() {
             Guruhlar ro'yxati
           </CardTitle>
           <Button
-            className="bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 flex gap-2 items-center transition-colors w-full sm:w-auto"
+            className="bg-[#18181b] text-white hover:bg-[#18181b]/90 dark:bg-white dark:text-black dark:hover:bg-gray-200 flex gap-2 items-center transition-colors w-full sm:w-auto"
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus size={18} />
@@ -282,7 +249,7 @@ export default function GroupsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
+                {groupsLoading ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center">
                       <Loader2 className="animate-spin h-5 w-5 mx-auto text-gray-400 dark:text-gray-500" />
@@ -298,8 +265,7 @@ export default function GroupsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  groups.map((group, index) => {
-                    // Backendda boshlanish va tugash sanasi har xil propertylarda kelishi mumkin
+                  groups.map((group: any, index: number) => {
                     const startTime =
                       group.start_date ||
                       group.started_group ||
@@ -378,83 +344,80 @@ export default function GroupsPage() {
         </CardContent>
       </Card>
 
-      {/* 1. GURUH QO'SHISH MODALI */}
+      {/* ====================================================== */}
+      {/* 1. GURUH QO'SHISH MODALI (Rasmdagi dizaynga ko'chirilgan 100%) */}
+      {/* ====================================================== */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
+        <DialogContent className="sm:max-w-[450px] bg-white dark:bg-[#18181b] dark:border-gray-800 dark:text-gray-100 p-6 rounded-xl shadow-lg border-0">
           <DialogHeader>
-            <DialogTitle>Yangi Guruh Qo'shish</DialogTitle>
+            {/* Rasmda Tahrirlash deb yozilgan, xohlasangiz Guruh qo'shish deb o'zgartirishingiz mumkin */}
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Tahrirlash
+            </DialogTitle>
+            <DialogDescription className="hidden">
+              Guruh ma'lumotlarini kiritish
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateGroup} className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="dark:text-gray-300">Kursni tanlang</Label>
-              <select
+          <form onSubmit={handleCreateGroup} className="space-y-4">
+            {/* 1. Guruh nomi (Input bilan) */}
+            <div className="space-y-1.5">
+              <Label className="text-[14px] font-medium text-gray-800 dark:text-gray-300">
+                Guruh nomi
+              </Label>
+              <Input
                 required
-                className="flex h-10 w-full rounded-md border border-input dark:border-gray-800 bg-white dark:bg-gray-950 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-700 dark:text-white transition-colors"
-                value={newGroup.course_id}
+                placeholder="Davron"
+                className="h-11 rounded-[8px] border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-[15px] focus-visible:ring-1 focus-visible:ring-gray-400 text-gray-900 dark:text-white"
+                value={newGroup.name}
                 onChange={(e) =>
-                  setNewGroup({ ...newGroup, course_id: e.target.value })
+                  setNewGroup({ ...newGroup, name: e.target.value })
                 }
-              >
-                <option value="" disabled>
-                  Kurs tanlang
-                </option>
-                {courses.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name || c.course_name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
-            <div className="space-y-2">
-              <Label className="dark:text-gray-300">Ustozni tanlang</Label>
-              <select
+
+            {/* 2. Ustoz (Input bilan) */}
+            <div className="space-y-1.5">
+              <Label className="text-[14px] font-medium text-gray-800 dark:text-gray-300">
+                Ustoz
+              </Label>
+              <Input
                 required
-                className="flex h-10 w-full rounded-md border border-input dark:border-gray-800 bg-white dark:bg-gray-950 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-700 dark:text-white transition-colors"
+                placeholder="Davron"
+                className="h-11 rounded-[8px] border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-[15px] focus-visible:ring-1 focus-visible:ring-gray-400 text-gray-900 dark:text-white"
                 value={newGroup.teacher}
                 onChange={(e) =>
                   setNewGroup({ ...newGroup, teacher: e.target.value })
                 }
-              >
-                <option value="" disabled>
-                  Ustoz tanlang
-                </option>
-                {teachers.map((t) => (
-                  <option key={t._id} value={t._id}>
-                    {t.first_name} {t.last_name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
-            <div className="space-y-2">
-              <Label className="dark:text-gray-300">Boshlanish sanasi</Label>
+
+            {/* 3. Email (Input bilan) */}
+            <div className="space-y-1.5">
+              <Label className="text-[14px] font-medium text-gray-800 dark:text-gray-300">
+                Email
+              </Label>
               <Input
-                type="date"
                 required
-                className="bg-white dark:bg-gray-950 dark:border-gray-800 dark:text-white dark:[color-scheme:dark]"
-                value={newGroup.started_group}
+                placeholder="2025-05-15"
+                className="h-11 rounded-[8px] border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-[15px] focus-visible:ring-1 focus-visible:ring-gray-400 text-gray-900 dark:text-white"
+                value={newGroup.email}
                 onChange={(e) =>
-                  setNewGroup({ ...newGroup, started_group: e.target.value })
+                  setNewGroup({ ...newGroup, email: e.target.value })
                 }
               />
             </div>
-            <DialogFooter className="pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800 dark:bg-gray-950"
-                onClick={() => setIsAddModalOpen(false)}
-              >
-                Bekor qilish
-              </Button>
+
+            {/* Tugma */}
+            <DialogFooter className="pt-3 sm:justify-end">
               <Button
                 type="submit"
-                disabled={addLoading}
-                className="bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                disabled={addMutation.isPending}
+                className="bg-[#1e1e1c] hover:bg-black text-white dark:bg-white dark:text-black rounded-[8px] px-5 h-10 font-medium transition-colors"
               >
-                {addLoading && (
+                {addMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Saqlash
+                Save changes
               </Button>
             </DialogFooter>
           </form>
@@ -463,9 +426,12 @@ export default function GroupsPage() {
 
       {/* 2. TUGASH VAQTINI BELGILASH MODALI */}
       <Dialog open={isEndDateModalOpen} onOpenChange={setIsEndDateModalOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
+        <DialogContent className="sm:max-w-[400px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 rounded-xl">
           <DialogHeader>
             <DialogTitle>Tugash vaqtini belgilash</DialogTitle>
+            <DialogDescription className="hidden">
+              Guruhning tugash vaqtini tahrirlash
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditEndDate} className="space-y-4 py-4">
             <div className="space-y-2">
@@ -473,28 +439,28 @@ export default function GroupsPage() {
               <Input
                 type="date"
                 required
-                className="bg-white dark:bg-gray-950 dark:border-gray-800 dark:text-white dark:[color-scheme:dark]"
+                className="h-11 rounded-[8px] border-gray-300 dark:border-gray-700 bg-white dark:bg-transparent dark:text-white dark:[color-scheme:dark]"
                 value={endDateData.date}
                 onChange={(e) =>
                   setEndDateData({ ...endDateData, date: e.target.value })
                 }
               />
             </div>
-            <DialogFooter className="pt-4">
+            <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
-                className="dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800 dark:bg-gray-950"
+                className="rounded-[8px] dark:border-gray-700 dark:hover:bg-gray-800"
                 onClick={() => setIsEndDateModalOpen(false)}
               >
                 Bekor qilish
               </Button>
               <Button
                 type="submit"
-                disabled={endDateLoading}
-                className="bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                disabled={editEndDateMutation.isPending}
+                className="bg-[#18181b] text-white dark:bg-white dark:text-black rounded-[8px]"
               >
-                {endDateLoading && (
+                {editEndDateMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Saqlash
@@ -506,7 +472,7 @@ export default function GroupsPage() {
 
       {/* 3. GURUHNI TUGATISH MODALI */}
       <Dialog open={isEndGroupModalOpen} onOpenChange={setIsEndGroupModalOpen}>
-        <DialogContent className="sm:max-w-[400px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
+        <DialogContent className="sm:max-w-[400px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 rounded-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-green-600 dark:text-green-500">
               <AlertCircle size={20} /> Guruhni tugatish
@@ -519,17 +485,17 @@ export default function GroupsPage() {
           <DialogFooter className="mt-4">
             <Button
               variant="outline"
-              className="dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800 dark:bg-gray-950"
+              className="rounded-[8px] dark:border-gray-700 dark:hover:bg-gray-800"
               onClick={() => setIsEndGroupModalOpen(false)}
             >
               Bekor qilish
             </Button>
             <Button
               onClick={handleEndGroup}
-              disabled={endGroupLoading}
-              className="bg-green-600 hover:bg-green-700 text-white dark:bg-green-600 dark:hover:bg-green-700"
+              disabled={endGroupMutation.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white rounded-[8px]"
             >
-              {endGroupLoading ? (
+              {endGroupMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 "Ha, tugatish"

@@ -1,7 +1,7 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-
+import QueryProvider from "@/providers/query-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({
@@ -10,9 +10,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // 👇 SHU YERGA E'TIBOR BERING: suppressHydrationWarning qo'shildi
+    
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
+      <QueryProvider>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -21,6 +22,7 @@ export default function RootLayout({
         >
           {children}
         </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

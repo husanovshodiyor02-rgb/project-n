@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
   Clock,
@@ -41,20 +42,21 @@ interface Course {
 }
 
 export default function CoursesPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  // Tokinni ishonchli olish
+  const getToken = () =>
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   // --- MODALS STATE ---
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [editLoading, setEditLoading] = useState(false);
 
   // --- O'CHIRISH STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // --- FORM DATA ---
   const [categoryName, setCategoryName] = useState("");
@@ -74,19 +76,13 @@ export default function CoursesPage() {
     price: "",
   });
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-  // DYNAMIC HEADERS - Har bir so'rov oldidan tokenni qayta o'qiydi!
-  const getHeaders = () => {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("token") : "";
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    };
-  };
+  // DYNAMIC HEADERS
+  const getHeaders = () => ({
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      "Content-Type": "application/json",
+    },
+  });
 
   // --- YORDAMCHI FUNKSIYALAR ---
   const getSafeText = (data: any) => {
@@ -99,80 +95,78 @@ export default function CoursesPage() {
     return new Intl.NumberFormat("en-US").format(price) + " UZS";
   };
 
-  // 1. KURS LARNI YUKLASH
-  const fetchCourses = async () => {
-    setLoading(true);
-    try {
+  // ==========================================
+  // QUERIES: KURS LARNI YUKLASH
+  // ==========================================
+  const { data: courses = [], isLoading: coursesLoading } = useQuery({
+    queryKey: ["courses"],
+    queryFn: async () => {
       const res = await axios.get(
         `${API_URL}/api/course/get-courses`,
         getHeaders()
       );
+      return res.data.data || res.data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-      console.log("BACKEND DATA:", res.data);
+  // ==========================================
+  // MUTATIONS: MA'LUMOTLARNI O'ZGARTIRISH
+  // ==========================================
 
-      setCourses(res.data.data || res.data || []);
-    } catch (error) {
-      console.error("Kurslarni yuklashda xatolik:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCourses();
-  }, []);
-
-  // 2. KATEGORIYA YARATISH
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitLoading(true);
-    try {
-      await axios.post(
+  // 1. KATEGORIYA YARATISH
+  const createCategoryMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return axios.post(
         `${API_URL}/api/course/create-category`,
-        { name: categoryName },
+        { name },
         getHeaders()
       );
-
+    },
+    onSuccess: () => {
       setIsCategoryModalOpen(false);
       setCategoryName("");
       setIsCourseModalOpen(true);
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Kategoriya yaratishda xato");
-    } finally {
-      setSubmitLoading(false);
-    }
+    },
+  });
+
+  const handleCreateCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    createCategoryMutation.mutate(categoryName);
   };
 
-  // 3. KURS YARATISH
-  const handleCreateCourse = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitLoading(true);
-    try {
-      const payload = {
-        name: newCourse.name,
-        description: newCourse.description,
-        duration: newCourse.duration,
-        price: Number(newCourse.price),
-      };
-
-      await axios.post(
+  // 2. KURS YARATISH
+  const createCourseMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      return axios.post(
         `${API_URL}/api/course/create-course`,
         payload,
         getHeaders()
       );
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
       setIsCourseModalOpen(false);
       setNewCourse({ name: "", description: "", duration: "", price: "" });
-      fetchCourses();
       alert("Kurs muvaffaqiyatli qo'shildi!");
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Kurs yaratishda xato");
-    } finally {
-      setSubmitLoading(false);
-    }
+    },
+  });
+
+  const handleCreateCourse = (e: React.FormEvent) => {
+    e.preventDefault();
+    createCourseMutation.mutate({
+      ...newCourse,
+      price: Number(newCourse.price),
+    });
   };
 
-  // 4. KURS TAHRIRLASH
+  // 3. KURS TAHRIRLASH
   const openEditModal = (course: Course) => {
     setEditCourseData({
       _id: course._id,
@@ -184,132 +178,115 @@ export default function CoursesPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleEditCourse = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEditLoading(true);
-    try {
-      const payload = {
-        _id: editCourseData._id,
-        id: editCourseData._id,
-        course_id: editCourseData._id,
-        name: editCourseData.name,
-        description: editCourseData.description,
-        duration: editCourseData.duration,
-        price: Number(editCourseData.price),
-      };
-
+  const editCourseMutation = useMutation({
+    mutationFn: async (payload: any) => {
       try {
-        await axios.post(
+        return await axios.post(
           `${API_URL}/api/course/edit-course`,
           payload,
           getHeaders()
         );
       } catch (err: any) {
         if (err.response?.status === 404 || err.response?.status === 405) {
-          await axios.put(
+          return await axios.put(
             `${API_URL}/api/course/edit-course`,
             payload,
             getHeaders()
           );
-        } else {
-          throw err;
         }
+        throw err;
       }
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
       setIsEditModalOpen(false);
-      fetchCourses();
       alert("Kurs muvaffaqiyatli tahrirlandi!");
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Tahrirlashda xatolik yuz berdi");
-    } finally {
-      setEditLoading(false);
-    }
+    },
+  });
+
+  const handleEditCourse = (e: React.FormEvent) => {
+    e.preventDefault();
+    editCourseMutation.mutate({
+      _id: editCourseData._id,
+      id: editCourseData._id,
+      course_id: editCourseData._id,
+      name: editCourseData.name,
+      description: editCourseData.description,
+      duration: editCourseData.duration,
+      price: Number(editCourseData.price),
+    });
   };
 
-  // =====================================
-  // 5. KURSni MUZLATISH (Aynan PUT va course_id orqali)
-  // =====================================
-  const handleFreeze = async (courseId: string) => {
-    if (!courseId) return;
-
-    try {
-      await axios.put(
+  // 4. KURSni MUZLATISH
+  const freezeMutation = useMutation({
+    mutationFn: async (courseId: string) => {
+      return axios.put(
         `${API_URL}/api/course/freeze-course`,
         { course_id: courseId },
         getHeaders()
       );
-
-      // 🔥 UI ni majburiy yangilaymiz
-      setCourses((prev) =>
-        prev.map((c) => (c._id === courseId ? { ...c, is_frozen: true } : c))
-      );
-    } catch (error: any) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Muzlatishda xato yuz berdi");
-    }
-  };
+    },
+  });
 
-  // =====================================
-  // 6. KURSni ERITISH (Aynan PUT va course_id orqali)
-  // =====================================
-  const handleUnfreeze = async (courseId: string) => {
-    if (!courseId) return;
-
-    try {
-      await axios.put(
+  // 5. KURSni ERITISH
+  const unfreezeMutation = useMutation({
+    mutationFn: async (courseId: string) => {
+      return axios.put(
         `${API_URL}/api/course/unfreeze-course`,
         { course_id: courseId },
         getHeaders()
       );
-
-      // 🔥 UI ni majburiy yangilaymiz
-      setCourses((prev) =>
-        prev.map((c) => (c._id === courseId ? { ...c, is_frozen: false } : c))
-      );
-    } catch (error: any) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "Eritishda xato yuz berdi");
-    }
-  };
+    },
+  });
 
-  // 7. KURSni O'CHIRISH
-  const openDeleteModal = (id: string) => {
-    setCourseToDelete(id);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleDeleteCourse = async () => {
-    if (!courseToDelete) return;
-    setDeleteLoading(true);
-    try {
-      const payload = {
-        _id: courseToDelete,
-        id: courseToDelete,
-        course_id: courseToDelete,
-      };
-
+  // 6. KURSni O'CHIRISH
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const payload = { _id: id, id, course_id: id };
       try {
-        await axios.delete(`${API_URL}/api/course/delete-course`, {
+        return await axios.delete(`${API_URL}/api/course/delete-course`, {
           ...getHeaders(),
           data: payload,
         });
       } catch (err: any) {
         if (err.response?.status === 404 || err.response?.status === 405) {
-          await axios.delete(
-            `${API_URL}/api/course/delete-course/${courseToDelete}`,
+          return await axios.delete(
+            `${API_URL}/api/course/delete-course/${id}`,
             getHeaders()
           );
-        } else {
-          throw err;
         }
+        throw err;
       }
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
       setIsDeleteModalOpen(false);
       setCourseToDelete(null);
-      fetchCourses();
       alert("Kurs muvaffaqiyatli o'chirildi!");
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       alert(error.response?.data?.message || "O'chirishda xatolik yuz berdi");
-    } finally {
-      setDeleteLoading(false);
+    },
+  });
+
+  const handleDeleteCourse = () => {
+    if (courseToDelete) {
+      deleteMutation.mutate(courseToDelete);
     }
   };
 
@@ -330,7 +307,7 @@ export default function CoursesPage() {
       </div>
 
       {/* COURSES GRID */}
-      {loading ? (
+      {coursesLoading ? (
         <div className="flex justify-center items-center h-40">
           <Loader2 className="animate-spin h-8 w-8 text-gray-400 dark:text-gray-500" />
         </div>
@@ -340,7 +317,7 @@ export default function CoursesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-          {courses.map((course) => {
+          {courses.map((course: Course) => {
             const isFrozen = course.is_frozen === true;
 
             return (
@@ -402,32 +379,51 @@ export default function CoursesPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => openDeleteModal(course._id)}
+                      onClick={() => {
+                        setCourseToDelete(course._id);
+                        setIsDeleteModalOpen(true);
+                      }}
                       className="w-full flex items-center justify-center gap-1.5 bg-[#EF4444] hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>O'chirish</span>
                     </Button>
 
-                    {/* MUZLATISH / ERITISH TUGMASI RANGI VA LOGIKASI */}
+                    {/* MUZLATISH / ERITISH TUGMASI */}
                     {isFrozen ? (
                       <Button
                         size="sm"
-                        onClick={() => handleUnfreeze(course._id)}
-                        // ERITISH - QIZIL RANGDA
+                        onClick={() => unfreezeMutation.mutate(course._id)}
+                        disabled={
+                          unfreezeMutation.isPending &&
+                          unfreezeMutation.variables === course._id
+                        }
                         className="col-span-2 w-full bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white transition-colors flex items-center justify-center gap-1.5"
                       >
-                        <Flame className="w-4 h-4" />
+                        {unfreezeMutation.isPending &&
+                        unfreezeMutation.variables === course._id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Flame className="w-4 h-4" />
+                        )}
                         <span>Eritish</span>
                       </Button>
                     ) : (
                       <Button
                         size="sm"
-                        onClick={() => handleFreeze(course._id)}
-                        // MUZLATISH - KO'K RANGDA
+                        onClick={() => freezeMutation.mutate(course._id)}
+                        disabled={
+                          freezeMutation.isPending &&
+                          freezeMutation.variables === course._id
+                        }
                         className="col-span-2 w-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white transition-colors flex items-center justify-center gap-1.5"
                       >
-                        <Snowflake className="w-4 h-4" />
+                        {freezeMutation.isPending &&
+                        freezeMutation.variables === course._id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Snowflake className="w-4 h-4" />
+                        )}
                         <span>Muzlatish</span>
                       </Button>
                     )}
@@ -474,10 +470,10 @@ export default function CoursesPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={submitLoading}
+                disabled={createCategoryMutation.isPending}
                 className="w-full sm:w-auto bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
-                {submitLoading && (
+                {createCategoryMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Keyingisi
@@ -559,10 +555,10 @@ export default function CoursesPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={submitLoading}
+                disabled={createCourseMutation.isPending}
                 className="w-full sm:w-auto bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
-                {submitLoading && (
+                {createCourseMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Saqlash
@@ -650,10 +646,10 @@ export default function CoursesPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={editLoading}
+                disabled={editCourseMutation.isPending}
                 className="w-full sm:w-auto bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
-                {editLoading && (
+                {editCourseMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 O'zgartirish
@@ -686,10 +682,10 @@ export default function CoursesPage() {
             <Button
               variant="destructive"
               onClick={handleDeleteCourse}
-              disabled={deleteLoading}
+              disabled={deleteMutation.isPending}
               className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white dark:bg-red-600 dark:hover:bg-red-700"
             >
-              {deleteLoading ? (
+              {deleteMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 "Ha, o'chirish"

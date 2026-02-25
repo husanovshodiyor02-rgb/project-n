@@ -13,8 +13,6 @@ import {
   Settings,
   User,
   LogOut,
-  Menu,
-  X,
   PanelLeft,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -39,23 +37,56 @@ export default function AdminLayout({
   const router = useRouter();
   const { setTheme, theme } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
 
-  // 1. User ma'lumotlarini olish (LocalStorage dan)
+  // 1. User ma'lumotlari uchun state (Birinchi kodingizdagi logikadan olindi)
+  const [userData, setUserData] = useState({
+    name: "Yuklanmoqda...",
+    role: "User",
+    image: "",
+  });
+
+  // 2. User ma'lumotlarini olish va Tokenni tekshirish
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     const token = localStorage.getItem("token");
 
+    // Token bo'lmasa login sahifasiga otib yuborish
     if (!token) {
-      router.push("/login"); // Token bo'lmasa login sahifasiga otib yuborish
+      router.push("/login");
+      return;
     }
 
+    // LocalStoragedan malumotlarni o'qish
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, [router]);
+      try {
+        const parsed = JSON.parse(storedUser);
 
-  // 2. Chiqish funksiyasi (Logout)
+        const firstName = parsed?.first_name || "";
+        const lastName = parsed?.last_name || "";
+        const fullName = parsed?.name || parsed?.fullName || parsed?.username;
+
+        const finalName =
+          firstName || lastName
+            ? `${firstName} ${lastName}`.trim()
+            : fullName || "Foydalanuvchi";
+
+        const finalRole = parsed?.role || "Manager";
+        const finalImage = parsed?.image || parsed?.img || "";
+
+        setUserData({
+          name: finalName,
+          role: finalRole,
+          image: finalImage,
+        });
+      } catch (error) {
+        setUserData({ name: "Admin", role: "Manager", image: "" });
+      }
+    } else {
+      setUserData({ name: "Kirilmagan", role: "Mehmon", image: "" });
+    }
+  }, [router, pathname]);
+
+  // 3. Chiqish funksiyasi (Logout)
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -197,19 +228,23 @@ export default function AdminLayout({
               <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
 
-            {/* User Profile */}
-            <div className="flex items-center gap-3 border-l pl-4 dark:border-slate-700">
+            {/* User Profile (Shu qismga ma'lumotlar qo'yildi) */}
+            <div className="flex items-center gap-3 border-l pl-4 dark:border-slate-700 cursor-pointer">
               <div className="text-right hidden md:block">
-                <p className="text-sm font-medium text-slate-900 dark:text-white">
-                  {user?.name || "Foydalanuvchi"}
+                <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">
+                  {userData.name}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {user?.role || "Admin"}
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                  {userData.role}
                 </p>
               </div>
-              <Avatar>
-                <AvatarImage src="https://github.com/shadcn.png" />
-                <AvatarFallback>AD</AvatarFallback>
+              <Avatar className="w-10 h-10 border border-slate-200 dark:border-slate-700">
+                {/* Rasm bo'lsa uni ko'rsatadi, yo'q bo'lsa default rasm */}
+                <AvatarImage src={userData.image} alt="User Avatar" />
+                {/* Rasm yuklanmasa ismining birinchi harfini ko'rsatadi */}
+                <AvatarFallback className="bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold">
+                  {userData.name.charAt(0).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
             </div>
           </div>

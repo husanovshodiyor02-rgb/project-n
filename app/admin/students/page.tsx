@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search,
   Plus,
@@ -23,8 +24,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -48,117 +47,104 @@ interface Student {
 }
 
 export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient(); // Keshni boshqarish uchun
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  // Qidiruv va Filtr state lari
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
 
   // --- QO'SHISH STATE ---
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  // YANGI STATE TUZILMASI (Siz bergan JSON bo'yicha)
   const [newStudent, setNewStudent] = useState({
     first_name: "",
     last_name: "",
     phone: "",
-    groupId: "", // Parol yo'q, Guruh ID bor
+    groupId: "",
   });
-  const [addLoading, setAddLoading] = useState(false);
 
   // --- O'CHIRISH (DELETE) STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-  // 1. DATA OLISH (FETCH)
-  const fetchStudents = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
+  // 1. DATA OLISH (FETCH) - TanStack Query
+  const { data: students = [], isLoading } = useQuery({
+    queryKey: ["students"],
+    queryFn: async () => {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const res = await axios.get(`${API_URL}/api/student/get-all-students`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setStudents(res.data.data || res.data || []);
-    } catch (error) {
-      console.error("Xatolik:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data.data || res.data || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 daqiqa keshlanadi, boshqa sahifadan qaytsa srazu chiqadi
+  });
 
-  useEffect(() => {
-    fetchStudents();
-  }, []);
-
-  // 2. STUDENT QO'SHISH (YANGILANGAN PAYLOAD)
-  const handleAddStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddLoading(true);
-    try {
+  // 2. STUDENT QO'SHISH - Mutation
+  const addMutation = useMutation({
+    mutationFn: async (payload: any) => {
       const token = localStorage.getItem("token");
-
-      // SIZ SO'RAGAN JSON FORMATI:
-      const payload = {
-        first_name: newStudent.first_name,
-        last_name: newStudent.last_name,
-        phone: newStudent.phone,
-        groups: [
-          {
-            group: newStudent.groupId, // Inputdan olingan ID
-          },
-        ],
-      };
-
-      console.log("Yuborilayotgan data:", payload);
-
-      await axios.post(`${API_URL}/api/student/create-student`, payload, {
+      return axios.post(`${API_URL}/api/student/create-student`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] }); // Ro'yxatni orqa fonda yangilash
       setIsAddModalOpen(false);
-      // Formani tozalash
       setNewStudent({ first_name: "", last_name: "", phone: "", groupId: "" });
-      fetchStudents();
       alert("Student muvaffaqiyatli qo'shildi!");
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       console.error("Add error:", error);
-      const errMsg =
-        error.response?.data?.message || "Qo'shishda xatolik yuz berdi";
-      alert(errMsg);
-    } finally {
-      setAddLoading(false);
-    }
+      alert(error.response?.data?.message || "Qo'shishda xatolik yuz berdi");
+    },
+  });
+
+  const handleAddStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload = {
+      first_name: newStudent.first_name,
+      last_name: newStudent.last_name,
+      phone: newStudent.phone,
+      groups: [
+        {
+          group: newStudent.groupId,
+        },
+      ],
+    };
+    addMutation.mutate(payload); // Zapros yuborish
   };
 
-  // 3. STUDENT O'CHIRISH
+  // 3. STUDENT O'CHIRISH - Mutation
   const openDeleteModal = (id: string) => {
     setStudentToDelete(id);
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteStudent = async () => {
-    if (!studentToDelete) return;
-    setDeleteLoading(true);
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const token = localStorage.getItem("token");
-
-      await axios.delete(`${API_URL}/api/student/delete-student`, {
+      return axios.delete(`${API_URL}/api/student/delete-student`, {
         headers: { Authorization: `Bearer ${token}` },
-        data: {
-          _id: studentToDelete,
-        },
+        data: { _id: id },
       });
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
       setIsDeleteModalOpen(false);
       setStudentToDelete(null);
-      fetchStudents();
       alert("Student o'chirildi!");
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       console.error("Delete error:", error);
       alert(error.response?.data?.message || "O'chirishda xatolik");
-    } finally {
-      setDeleteLoading(false);
+    },
+  });
+
+  const handleDeleteStudent = () => {
+    if (studentToDelete) {
+      deleteMutation.mutate(studentToDelete);
     }
   };
 
@@ -167,17 +153,9 @@ export default function StudentsPage() {
   };
 
   // 4. FILTER VA QIDIRUV
-  const filteredStudents = students.filter((student) => {
-    const fName = (
-      student.first_name ||
-      (student as any).firstName ||
-      ""
-    ).toLowerCase();
-    const lName = (
-      student.last_name ||
-      (student as any).lastName ||
-      ""
-    ).toLowerCase();
+  const filteredStudents = students.filter((student: any) => {
+    const fName = (student.first_name || student.firstName || "").toLowerCase();
+    const lName = (student.last_name || student.lastName || "").toLowerCase();
     const phone = (student.phone || "").toLowerCase();
     const status = (student.status || "").toLowerCase();
 
@@ -198,7 +176,6 @@ export default function StudentsPage() {
   });
 
   return (
-    // DARK MODE: Background va Text ranglari
     <div className="p-6 space-y-6 bg-gray-50 dark:bg-slate-950 min-h-screen font-sans text-slate-800 dark:text-slate-200 transition-colors duration-300">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -242,25 +219,25 @@ export default function StudentsPage() {
               className="w-40 bg-white dark:bg-slate-900 dark:border-slate-800"
             >
               <DropdownMenuItem
-                className="dark:focus:bg-slate-800 dark:text-slate-200"
+                className="dark:focus:bg-slate-800 dark:text-slate-200 cursor-pointer"
                 onClick={() => setFilterStatus("All")}
               >
                 All
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="dark:focus:bg-slate-800 dark:text-slate-200"
+                className="dark:focus:bg-slate-800 dark:text-slate-200 cursor-pointer"
                 onClick={() => setFilterStatus("Faol")}
               >
                 Faol
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="dark:focus:bg-slate-800 dark:text-slate-200"
+                className="dark:focus:bg-slate-800 dark:text-slate-200 cursor-pointer"
                 onClick={() => setFilterStatus("Yakunladi")}
               >
                 Yakunladi
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="dark:focus:bg-slate-800 dark:text-slate-200"
+                className="dark:focus:bg-slate-800 dark:text-slate-200 cursor-pointer"
                 onClick={() => setFilterStatus("Tatilda")}
               >
                 Tatilda
@@ -285,7 +262,7 @@ export default function StudentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-              {loading ? (
+              {isLoading ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -304,16 +281,16 @@ export default function StudentsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((student, index) => (
+                filteredStudents.map((student: any, index: number) => (
                   <tr
                     key={student._id || index}
                     className="bg-white dark:bg-slate-900 hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors"
                   >
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-slate-100">
-                      {student.first_name || (student as any).firstName}
+                      {student.first_name || student.firstName}
                     </td>
                     <td className="px-6 py-4 text-gray-700 dark:text-slate-300">
-                      {student.last_name || (student as any).lastName}
+                      {student.last_name || student.lastName}
                     </td>
                     <td className="px-6 py-4 text-gray-600 dark:text-slate-400">
                       {student.phone}
@@ -325,16 +302,21 @@ export default function StudentsPage() {
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium 
                         ${
-                          student.status?.includes("faol")
+                          student.status?.toLowerCase().includes("faol")
                             ? "text-green-600 dark:text-green-400"
-                            : student.status?.includes("yakunladi")
+                            : student.status
+                                ?.toLowerCase()
+                                .includes("yakunladi")
                             ? "text-gray-500 dark:text-gray-400"
-                            : student.status?.includes("ta'tilda")
+                            : student.status
+                                ?.toLowerCase()
+                                .includes("tatilda") ||
+                              student.status?.toLowerCase().includes("ta'tilda")
                             ? "text-yellow-600 dark:text-yellow-400"
                             : "text-red-600 dark:text-red-400"
                         }`}
                       >
-                        {student.status}
+                        {student.status || "Noma'lum"}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -379,7 +361,7 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* 1. QO'SHISH MODALI (YANGILANGAN) */}
+      {/* 1. QO'SHISH MODALI */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[425px] bg-white dark:bg-slate-900 dark:border-slate-800">
           <DialogHeader>
@@ -434,14 +416,13 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            {/* YANGI: Guruh ID Inputi */}
             <div className="space-y-2">
               <Label className="dark:text-slate-300">Guruh</Label>
               <div className="relative">
                 <Users className="absolute left-3 top-3 h-4 w-4 text-gray-400 dark:text-slate-500" />
                 <Input
                   required
-                  placeholder="Guruh nomi"
+                  placeholder="Guruh ID si"
                   className="pl-9 dark:bg-slate-950 dark:border-slate-800 dark:text-white"
                   value={newStudent.groupId}
                   onChange={(e) =>
@@ -465,10 +446,10 @@ export default function StudentsPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={addLoading}
+                disabled={addMutation.isPending}
                 className="bg-slate-900 dark:bg-white dark:text-slate-900 dark:hover:bg-gray-200 text-white"
               >
-                {addLoading && (
+                {addMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}{" "}
                 Saqlash
@@ -500,10 +481,10 @@ export default function StudentsPage() {
             <Button
               variant="destructive"
               onClick={handleDeleteStudent}
-              disabled={deleteLoading}
+              disabled={deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-700 dark:hover:bg-red-800"
             >
-              {deleteLoading ? (
+              {deleteMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 "Ha, o'chirish"
