@@ -44,7 +44,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-// Types
+
 interface Admin {
   _id: string;
   first_name: string;
@@ -55,14 +55,14 @@ interface Admin {
 }
 
 export default function AdminsPage() {
-  const queryClient = useQueryClient(); // Keshni tozalash va yangilash uchun kerak
+  const queryClient = useQueryClient(); 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // Qidiruv va Filtr state lari
+ 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
 
-  // --- QO'SHISH STATE ---
+ 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newAdmin, setNewAdmin] = useState({
     first_name: "",
@@ -71,15 +71,15 @@ export default function AdminsPage() {
     password: "",
   });
 
-  // --- TAHRIRLASH (EDIT) STATE ---
+ 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<any>(null);
 
-  // --- O'CHIRISH (DELETE) STATE ---
+ 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [adminToDelete, setAdminToDelete] = useState<string | null>(null);
 
-  // 1. DATA OLISH (FETCH) - TanStack Query yordamida
+
   const { data: admins = [], isLoading } = useQuery({
     queryKey: ["admins"],
     queryFn: async () => {
@@ -90,10 +90,10 @@ export default function AdminsPage() {
       });
       return res.data.data || res.data || [];
     },
-    staleTime: 5 * 60 * 1000, // 5 daqiqa davomida keshda ushlab turadi
+    staleTime: 5 * 60 * 1000, 
   });
 
-  // 2. ADMIN QO'SHISH - Mutation
+
   const addMutation = useMutation({
     mutationFn: async (payload: any) => {
       const token = localStorage.getItem("token");
@@ -102,7 +102,7 @@ export default function AdminsPage() {
       });
     },
     onSuccess: () => {
-      // Muvaffaqiyatli qo'shilsa, keshni yangilaymiz (yangi ro'yxat srazu chiqadi)
+     
       queryClient.invalidateQueries({ queryKey: ["admins"] });
       setIsAddModalOpen(false);
       setNewAdmin({ first_name: "", last_name: "", email: "", password: "" });
@@ -124,10 +124,10 @@ export default function AdminsPage() {
       active: true,
       is_deleted: false,
     };
-    addMutation.mutate(payload); // Zaprosni jo'natish
+    addMutation.mutate(payload);
   };
 
-  // 3. ADMIN TAHRIRLASH - Mutation
+ 
   const openEditModal = (admin: Admin) => {
     setEditingAdmin({
       _id: admin._id,
@@ -159,10 +159,10 @@ export default function AdminsPage() {
 
   const handleUpdateAdmin = (e: React.FormEvent) => {
     e.preventDefault();
-    editMutation.mutate(editingAdmin); // Jo'natish
+    editMutation.mutate(editingAdmin); 
   };
 
-  // 4. ADMIN O'CHIRISH - Mutation
+
   const openDeleteModal = (id: string) => {
     setAdminToDelete(id);
     setIsDeleteModalOpen(true);
@@ -189,11 +189,11 @@ export default function AdminsPage() {
 
   const handleDeleteAdmin = () => {
     if (adminToDelete) {
-      deleteMutation.mutate(adminToDelete); // Jo'natish
+      deleteMutation.mutate(adminToDelete);
     }
   };
 
-  // 5. FILTER VA QIDIRUV (Keshdagi tayyor admins ro'yxati ichidan qidiriladi)
+ 
   const filteredAdmins = admins.filter((admin: any) => {
     const fName = (admin.first_name || admin.firstName || "").toLowerCase();
     const lName = (admin.last_name || admin.lastName || "").toLowerCase();
@@ -216,7 +216,7 @@ export default function AdminsPage() {
     return statusMatch && searchMatch;
   });
 
-  // Status Badge Logic
+ 
   const getStatusBadge = (status: string) => {
     const s = status?.toLowerCase() || "";
     if (s.includes("faol") && !s.includes("nofaol")) {
@@ -420,7 +420,7 @@ export default function AdminsPage() {
         </CardContent>
       </Card>
 
-      {/* 1. QO'SHISH MODALI */}
+     
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[425px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
           <DialogHeader>
@@ -486,7 +486,7 @@ export default function AdminsPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={addMutation.isPending} // TanStack holatini o'qish
+                disabled={addMutation.isPending} 
                 className="bg-black text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
                 {addMutation.isPending && (
@@ -499,7 +499,7 @@ export default function AdminsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. TAHRIRLASH MODALI */}
+    
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
           <DialogHeader>
@@ -587,7 +587,7 @@ export default function AdminsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 3. O'CHIRISH MODALI */}
+     
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
           <DialogHeader>

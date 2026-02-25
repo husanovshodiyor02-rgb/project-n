@@ -8,14 +8,13 @@ export default function QueryProvider({
 }: {
   children: React.ReactNode;
 }) {
-  // QueryClient ni useState ichida yaratish Next.js (App Router) uchun eng to'g'ri usul hisoblanadi
   const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 5 * 60 * 1000, // MA'LUMOTLAR 5 DAQIQA SAQLANADI (zapros qayta ketmaydi)
-            refetchOnWindowFocus: false, // Boshqa tabga o'tib qaytganda avtomat zapros ketmaydi
+            staleTime: 5 * 60 * 1000,
+            refetchOnWindowFocus: false,
           },
         },
       })

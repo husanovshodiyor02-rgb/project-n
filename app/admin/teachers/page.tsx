@@ -44,7 +44,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-// Types
 interface Teacher {
   _id: string;
   first_name: string;
@@ -55,14 +54,12 @@ interface Teacher {
 }
 
 export default function Teachers() {
-  const queryClient = useQueryClient(); // Keshni boshqarish uchun
+  const queryClient = useQueryClient();
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // Qidiruv va Filtr state lari
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
 
-  // --- QO'SHISH STATE ---
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newTeacher, setNewTeacher] = useState({
     first_name: "",
@@ -71,15 +68,12 @@ export default function Teachers() {
     password: "",
   });
 
-  // --- TAHRIRLASH (EDIT) STATE ---
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<any>(null);
 
-  // --- O'CHIRISH (DELETE) STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<string | null>(null);
 
-  // 1. DATA OLISH (FETCH) - TanStack Query
   const { data: teachers = [], isLoading } = useQuery({
     queryKey: ["teachers"],
     queryFn: async () => {
@@ -90,10 +84,9 @@ export default function Teachers() {
       });
       return res.data.data || res.data || [];
     },
-    staleTime: 5 * 60 * 1000, // 5 daqiqa davomida keshlanadi, kuttirmaydi!
+    staleTime: 5 * 60 * 1000,
   });
 
-  // 2. TEACHER QO'SHISH - Mutation
   const addMutation = useMutation({
     mutationFn: async (payload: any) => {
       const token = localStorage.getItem("token");
@@ -102,7 +95,7 @@ export default function Teachers() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["teachers"] }); // Ro'yxatni yangilash
+      queryClient.invalidateQueries({ queryKey: ["teachers"] });
       setIsAddModalOpen(false);
       setNewTeacher({ first_name: "", last_name: "", email: "", password: "" });
       alert("Ustoz qo'shildi!");
@@ -126,7 +119,6 @@ export default function Teachers() {
     addMutation.mutate(payload);
   };
 
-  // 3. TEACHER TAHRIRLASH - Mutation
   const openEditModal = (teacher: Teacher) => {
     setEditingTeacher({
       _id: teacher._id,
@@ -165,7 +157,6 @@ export default function Teachers() {
     editMutation.mutate(editingTeacher);
   };
 
-  // 4. TEACHER O'CHIRISH - Mutation
   const openDeleteModal = (id: string) => {
     setTeacherToDelete(id);
     setIsDeleteModalOpen(true);
@@ -196,7 +187,6 @@ export default function Teachers() {
     }
   };
 
-  // 5. FILTER VA QIDIRUV
   const filteredTeachers = teachers.filter((teacher: any) => {
     const fName = (teacher.first_name || teacher.firstName || "").toLowerCase();
     const lName = (teacher.last_name || teacher.lastName || "").toLowerCase();
@@ -220,7 +210,6 @@ export default function Teachers() {
     return statusMatch && searchMatch;
   });
 
-  // Status Badge qismi
   const getStatusBadge = (status: string) => {
     const s = status?.toLowerCase() || "";
     if (s.includes("faol") && !s.includes("nofaol")) {
@@ -430,7 +419,6 @@ export default function Teachers() {
         </CardContent>
       </Card>
 
-      {/* 1. QO'SHISH MODALI */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[425px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
           <DialogHeader>
@@ -509,7 +497,6 @@ export default function Teachers() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. TAHRIRLASH MODALI */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
           <DialogHeader>
@@ -603,7 +590,6 @@ export default function Teachers() {
         </DialogContent>
       </Dialog>
 
-      {/* 3. O'CHIRISH MODALI */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors">
           <DialogHeader>

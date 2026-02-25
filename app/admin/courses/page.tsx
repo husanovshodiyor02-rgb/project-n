@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 
-// Types
+
 interface Course {
   _id: string;
   name: any;
@@ -45,20 +45,20 @@ export default function CoursesPage() {
   const queryClient = useQueryClient();
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // Tokinni ishonchli olish
+
   const getToken = () =>
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // --- MODALS STATE ---
+
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // --- O'CHIRISH STATE ---
+ 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
 
-  // --- FORM DATA ---
+ 
   const [categoryName, setCategoryName] = useState("");
   const [newCourse, setNewCourse] = useState({
     name: "",
@@ -67,7 +67,7 @@ export default function CoursesPage() {
     price: "",
   });
 
-  // --- EDIT DATA ---
+  
   const [editCourseData, setEditCourseData] = useState({
     _id: "",
     name: "",
@@ -76,7 +76,7 @@ export default function CoursesPage() {
     price: "",
   });
 
-  // DYNAMIC HEADERS
+  
   const getHeaders = () => ({
     headers: {
       Authorization: `Bearer ${getToken()}`,
@@ -84,7 +84,7 @@ export default function CoursesPage() {
     },
   });
 
-  // --- YORDAMCHI FUNKSIYALAR ---
+
   const getSafeText = (data: any) => {
     if (!data) return "Noma'lum";
     if (typeof data === "object" && data.name) return data.name;
@@ -95,9 +95,7 @@ export default function CoursesPage() {
     return new Intl.NumberFormat("en-US").format(price) + " UZS";
   };
 
-  // ==========================================
-  // QUERIES: KURS LARNI YUKLASH
-  // ==========================================
+
   const { data: courses = [], isLoading: coursesLoading } = useQuery({
     queryKey: ["courses"],
     queryFn: async () => {
@@ -110,11 +108,7 @@ export default function CoursesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ==========================================
-  // MUTATIONS: MA'LUMOTLARNI O'ZGARTIRISH
-  // ==========================================
 
-  // 1. KATEGORIYA YARATISH
   const createCategoryMutation = useMutation({
     mutationFn: async (name: string) => {
       return axios.post(
@@ -138,7 +132,6 @@ export default function CoursesPage() {
     createCategoryMutation.mutate(categoryName);
   };
 
-  // 2. KURS YARATISH
   const createCourseMutation = useMutation({
     mutationFn: async (payload: any) => {
       return axios.post(
@@ -166,7 +159,7 @@ export default function CoursesPage() {
     });
   };
 
-  // 3. KURS TAHRIRLASH
+  
   const openEditModal = (course: Course) => {
     setEditCourseData({
       _id: course._id,
@@ -220,7 +213,7 @@ export default function CoursesPage() {
     });
   };
 
-  // 4. KURSni MUZLATISH
+
   const freezeMutation = useMutation({
     mutationFn: async (courseId: string) => {
       return axios.put(
@@ -237,7 +230,7 @@ export default function CoursesPage() {
     },
   });
 
-  // 5. KURSni ERITISH
+
   const unfreezeMutation = useMutation({
     mutationFn: async (courseId: string) => {
       return axios.put(
@@ -254,7 +247,7 @@ export default function CoursesPage() {
     },
   });
 
-  // 6. KURSni O'CHIRISH
+ 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const payload = { _id: id, id, course_id: id };
@@ -292,7 +285,7 @@ export default function CoursesPage() {
 
   return (
     <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
-      {/* HEADER */}
+      
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
           Kurslar
@@ -306,7 +299,7 @@ export default function CoursesPage() {
         </Button>
       </div>
 
-      {/* COURSES GRID */}
+    
       {coursesLoading ? (
         <div className="flex justify-center items-center h-40">
           <Loader2 className="animate-spin h-8 w-8 text-gray-400 dark:text-gray-500" />
@@ -365,7 +358,7 @@ export default function CoursesPage() {
                     </div>
                   </div>
 
-                  {/* ===== YANGILANGAN TUGMALAR DIZAYNI (GRID) ===== */}
+                  
                   <div className="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-gray-100 dark:border-gray-800">
                     <Button
                       variant="outline"
@@ -389,7 +382,7 @@ export default function CoursesPage() {
                       <span>O'chirish</span>
                     </Button>
 
-                    {/* MUZLATISH / ERITISH TUGMASI */}
+                   
                     {isFrozen ? (
                       <Button
                         size="sm"
@@ -435,9 +428,7 @@ export default function CoursesPage() {
         </div>
       )}
 
-      {/* ================= MODALLAR ================= */}
-
-      {/* 1. KATEGORIYA QO'SHISH MODALI */}
+  
       <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
         <DialogContent className="sm:max-w-[400px] w-[90vw] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors rounded-xl">
           <DialogHeader>
@@ -483,7 +474,7 @@ export default function CoursesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. KURS QO'SHISH MODALI */}
+    
       <Dialog open={isCourseModalOpen} onOpenChange={setIsCourseModalOpen}>
         <DialogContent className="sm:max-w-[425px] w-[90vw] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors rounded-xl">
           <DialogHeader>
@@ -568,7 +559,7 @@ export default function CoursesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 3. KURS TAHRIRLASH MODALI */}
+    
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px] w-[90vw] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors rounded-xl">
           <DialogHeader>
@@ -659,7 +650,7 @@ export default function CoursesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 4. KURS O'CHIRISH MODALI */}
+   
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px] w-[90vw] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 transition-colors rounded-xl">
           <DialogHeader>

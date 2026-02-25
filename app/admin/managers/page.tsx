@@ -22,7 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 
-// Backenddan keladigan ma'lumotlar turi
 interface Manager {
   _id: string;
   first_name: string;
@@ -32,11 +31,9 @@ interface Manager {
   status: string;
 }
 
-// 1. API dan ma'lumot olib keluvchi alohida funksiya (Fetcher)
 const fetchManagers = async (): Promise<Manager[]> => {
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // LocalStorage dan tokenni olish (Next.js da xato bermasligi uchun typeof window ishlatildi)
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -58,24 +55,22 @@ const fetchManagers = async (): Promise<Manager[]> => {
 
   const res = await response.json();
 
-  // Backend javobini array ko'rinishida qaytarish
   return Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
 };
 
 export default function ManagersPage() {
-  // 2. ASOSIY QISM: TanStack Query dan foydalanish
   const {
-    data: managers = [], // Agar ma'lumot hali kelmagan bo'lsa, bosh array [] bo'lib turadi
+    data: managers = [],
     isLoading,
     isError,
     error,
   } = useQuery({
-    queryKey: ["managers"], // Shu kalit so'z orqali keshlanadi
-    queryFn: fetchManagers, // Yuqoridagi API zapros funksiyasi
-    staleTime: 5 * 60 * 1000, // 5 DAQIQA KESHLASH! Boshqa page'ga o'tib qaytsa, srazu chiqadi.
+    queryKey: ["managers"],
+    queryFn: fetchManagers, 
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Statusni rangli chiqarish
+
   const getStatusBadge = (status: string) => {
     const s = status?.toLowerCase();
     if (s === "active" || s === "faol") {
@@ -95,7 +90,6 @@ export default function ManagersPage() {
     return <Badge variant="secondary">{status}</Badge>;
   };
 
-  // 3. Yuklanish va Xatolik holatlarini ko'rsatish
   if (isLoading) {
     return (
       <div className="flex justify-center p-10">
@@ -105,7 +99,6 @@ export default function ManagersPage() {
   }
 
   if (isError) {
-    // xato bo'lsa error.message qilib chiqaramiz
     return (
       <p className="text-red-500 p-6">
         {(error as Error).message ||

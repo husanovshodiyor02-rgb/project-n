@@ -39,7 +39,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
-// Types
+
 interface Group {
   _id: string;
   name?: string;
@@ -62,7 +62,6 @@ export default function GroupsPage() {
   const getToken = () =>
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // --- 1. GURUH QO'SHISH STATE (Rasmdagidek: nomi, ustoz, email) ---
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newGroup, setNewGroup] = useState({
     name: "",
@@ -70,20 +69,14 @@ export default function GroupsPage() {
     email: "",
   });
 
-  // --- 2. TUGASH VAQTINI BELGILASH STATE ---
   const [isEndDateModalOpen, setIsEndDateModalOpen] = useState(false);
   const [endDateData, setEndDateData] = useState({
     _id: "",
     date: "",
   });
 
-  // --- 3. GURUHNI TUGATISH STATE ---
   const [isEndGroupModalOpen, setIsEndGroupModalOpen] = useState(false);
   const [groupToEnd, setGroupToEnd] = useState<string | null>(null);
-
-  // ==========================================
-  // QUERIES: MA'LUMOTLARNI OLIB KELISH
-  // ==========================================
 
   const { data: groups = [], isLoading: groupsLoading } = useQuery({
     queryKey: ["groups"],
@@ -96,11 +89,6 @@ export default function GroupsPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ==========================================
-  // MUTATIONS: MA'LUMOTLARNI O'ZGARTIRISH
-  // ==========================================
-
-  // 1. GURUH YARATISH
   const addMutation = useMutation({
     mutationFn: async (payload: any) => {
       return axios.post(`${API_URL}/api/group/create-group`, payload, {
@@ -123,7 +111,6 @@ export default function GroupsPage() {
     addMutation.mutate(newGroup);
   };
 
-  // 2. TUGASH VAQTINI BELGILASH
   const editEndDateMutation = useMutation({
     mutationFn: async (payload: any) => {
       return axios.put(`${API_URL}/api/group/edit-end-group`, payload, {
@@ -146,7 +133,6 @@ export default function GroupsPage() {
     editEndDateMutation.mutate(endDateData);
   };
 
-  // 3. GURUHNI TUGATISH
   const endGroupMutation = useMutation({
     mutationFn: async (id: string) => {
       return axios.delete(`${API_URL}/api/group/end-group`, {
@@ -171,7 +157,6 @@ export default function GroupsPage() {
     }
   };
 
-  // --- Yordamchi Funksiyalar ---
   const formatDateTime = (
     dateString?: string | null,
     isEndDate: boolean = false
@@ -205,7 +190,6 @@ export default function GroupsPage() {
   return (
     <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
       <Card className="dark:bg-gray-900 dark:border-gray-800 transition-colors shadow-sm">
-        {/* HEADER */}
         <CardHeader className="flex flex-col sm:flex-row justify-between items-center gap-4 pb-6">
           <CardTitle className="text-2xl font-bold dark:text-gray-100">
             Guruhlar ro'yxati
@@ -219,7 +203,7 @@ export default function GroupsPage() {
           </Button>
         </CardHeader>
 
-        {/* TABLE */}
+    
         <CardContent className="p-0 sm:p-6 sm:pt-0">
           <div className="rounded-md border border-gray-100 dark:border-gray-800 overflow-hidden">
             <Table>
@@ -344,13 +328,9 @@ export default function GroupsPage() {
         </CardContent>
       </Card>
 
-      {/* ====================================================== */}
-      {/* 1. GURUH QO'SHISH MODALI (Rasmdagi dizaynga ko'chirilgan 100%) */}
-      {/* ====================================================== */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[450px] bg-white dark:bg-[#18181b] dark:border-gray-800 dark:text-gray-100 p-6 rounded-xl shadow-lg border-0">
           <DialogHeader>
-            {/* Rasmda Tahrirlash deb yozilgan, xohlasangiz Guruh qo'shish deb o'zgartirishingiz mumkin */}
             <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white mb-2">
               Tahrirlash
             </DialogTitle>
@@ -359,7 +339,6 @@ export default function GroupsPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateGroup} className="space-y-4">
-            {/* 1. Guruh nomi (Input bilan) */}
             <div className="space-y-1.5">
               <Label className="text-[14px] font-medium text-gray-800 dark:text-gray-300">
                 Guruh nomi
@@ -375,7 +354,6 @@ export default function GroupsPage() {
               />
             </div>
 
-            {/* 2. Ustoz (Input bilan) */}
             <div className="space-y-1.5">
               <Label className="text-[14px] font-medium text-gray-800 dark:text-gray-300">
                 Ustoz
@@ -391,7 +369,6 @@ export default function GroupsPage() {
               />
             </div>
 
-            {/* 3. Email (Input bilan) */}
             <div className="space-y-1.5">
               <Label className="text-[14px] font-medium text-gray-800 dark:text-gray-300">
                 Email
@@ -407,7 +384,6 @@ export default function GroupsPage() {
               />
             </div>
 
-            {/* Tugma */}
             <DialogFooter className="pt-3 sm:justify-end">
               <Button
                 type="submit"
@@ -417,14 +393,13 @@ export default function GroupsPage() {
                 {addMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Save changes
+                Saqlash
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* 2. TUGASH VAQTINI BELGILASH MODALI */}
       <Dialog open={isEndDateModalOpen} onOpenChange={setIsEndDateModalOpen}>
         <DialogContent className="sm:max-w-[400px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 rounded-xl">
           <DialogHeader>
@@ -470,7 +445,6 @@ export default function GroupsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 3. GURUHNI TUGATISH MODALI */}
       <Dialog open={isEndGroupModalOpen} onOpenChange={setIsEndGroupModalOpen}>
         <DialogContent className="sm:max-w-[400px] bg-white dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100 rounded-xl">
           <DialogHeader>

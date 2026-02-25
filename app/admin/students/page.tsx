@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
-// Types
 interface Student {
   _id: string;
   first_name: string;
@@ -47,14 +46,12 @@ interface Student {
 }
 
 export default function StudentsPage() {
-  const queryClient = useQueryClient(); // Keshni boshqarish uchun
+  const queryClient = useQueryClient();
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // Qidiruv va Filtr state lari
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
 
-  // --- QO'SHISH STATE ---
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({
     first_name: "",
@@ -63,11 +60,9 @@ export default function StudentsPage() {
     groupId: "",
   });
 
-  // --- O'CHIRISH (DELETE) STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
 
-  // 1. DATA OLISH (FETCH) - TanStack Query
   const { data: students = [], isLoading } = useQuery({
     queryKey: ["students"],
     queryFn: async () => {
@@ -78,10 +73,9 @@ export default function StudentsPage() {
       });
       return res.data.data || res.data || [];
     },
-    staleTime: 5 * 60 * 1000, // 5 daqiqa keshlanadi, boshqa sahifadan qaytsa srazu chiqadi
+    staleTime: 5 * 60 * 1000,
   });
 
-  // 2. STUDENT QO'SHISH - Mutation
   const addMutation = useMutation({
     mutationFn: async (payload: any) => {
       const token = localStorage.getItem("token");
@@ -90,7 +84,7 @@ export default function StudentsPage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] }); // Ro'yxatni orqa fonda yangilash
+      queryClient.invalidateQueries({ queryKey: ["students"] });
       setIsAddModalOpen(false);
       setNewStudent({ first_name: "", last_name: "", phone: "", groupId: "" });
       alert("Student muvaffaqiyatli qo'shildi!");
@@ -113,10 +107,9 @@ export default function StudentsPage() {
         },
       ],
     };
-    addMutation.mutate(payload); // Zapros yuborish
+    addMutation.mutate(payload);
   };
 
-  // 3. STUDENT O'CHIRISH - Mutation
   const openDeleteModal = (id: string) => {
     setStudentToDelete(id);
     setIsDeleteModalOpen(true);
@@ -152,7 +145,6 @@ export default function StudentsPage() {
     alert("Bu funksiya hali API ga ulanmagan");
   };
 
-  // 4. FILTER VA QIDIRUV
   const filteredStudents = students.filter((student: any) => {
     const fName = (student.first_name || student.firstName || "").toLowerCase();
     const lName = (student.last_name || student.lastName || "").toLowerCase();
@@ -177,14 +169,12 @@ export default function StudentsPage() {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 dark:bg-slate-950 min-h-screen font-sans text-slate-800 dark:text-slate-200 transition-colors duration-300">
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
           Studentlar ro'yxati
         </h1>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
-          {/* Qidiruv */}
           <div className="relative w-full md:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-slate-400" />
             <Input
@@ -195,7 +185,6 @@ export default function StudentsPage() {
             />
           </div>
 
-          {/* Qo'shish Tugmasi */}
           <Button
             className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-gray-200 flex gap-2 items-center"
             onClick={() => setIsAddModalOpen(true)}
@@ -204,7 +193,6 @@ export default function StudentsPage() {
             <span className="hidden sm:inline">Student Qo'shish</span>
           </Button>
 
-          {/* Filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -247,7 +235,6 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* JADVAL (TABLE) */}
       <div className="rounded-md border border-gray-100 dark:border-slate-800 overflow-hidden shadow-sm bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
@@ -361,7 +348,6 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* 1. QO'SHISH MODALI */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[425px] bg-white dark:bg-slate-900 dark:border-slate-800">
           <DialogHeader>
@@ -459,7 +445,6 @@ export default function StudentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. O'CHIRISH MODALI */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px] bg-white dark:bg-slate-900 dark:border-slate-800">
           <DialogHeader>

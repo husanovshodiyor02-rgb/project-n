@@ -38,25 +38,21 @@ export default function AdminLayout({
   const { setTheme, theme } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // 1. User ma'lumotlari uchun state (Birinchi kodingizdagi logikadan olindi)
   const [userData, setUserData] = useState({
     name: "Yuklanmoqda...",
     role: "User",
     image: "",
   });
 
-  // 2. User ma'lumotlarini olish va Tokenni tekshirish
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     const token = localStorage.getItem("token");
 
-    // Token bo'lmasa login sahifasiga otib yuborish
     if (!token) {
       router.push("/login");
       return;
     }
 
-    // LocalStoragedan malumotlarni o'qish
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
@@ -86,14 +82,12 @@ export default function AdminLayout({
     }
   }, [router, pathname]);
 
-  // 3. Chiqish funksiyasi (Logout)
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    router.push("/login"); // Login sahifasiga qaytish
+    router.push("/login");
   };
 
-  // Menyu ro'yxati
   const menuItems: SidebarItem[] = [
     { name: "Asosiy", href: "/admin", icon: LayoutDashboard },
     { name: "Menagerlar", href: "/admin/managers", icon: Users },
@@ -112,7 +106,6 @@ export default function AdminLayout({
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
-      {/* SIDEBAR (Chap tomon) */}
       <aside
         className={`
           ${isSidebarOpen ? "w-64" : "w-0 -ml-4"} 
@@ -130,7 +123,6 @@ export default function AdminLayout({
         </div>
 
         <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {/* Menu Section */}
           <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
             Menu
           </p>
@@ -164,7 +156,6 @@ export default function AdminLayout({
 
           <Separator className="my-4 dark:bg-slate-800" />
 
-          {/* Boshqalar Section */}
           <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
             Boshqalar
           </p>
@@ -187,7 +178,6 @@ export default function AdminLayout({
             </Link>
           ))}
 
-          {/* Chiqish Tugmasi */}
           <button
             onClick={handleLogout}
             className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors mt-2"
@@ -198,9 +188,7 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      {/* ASOSIY QISM (O'ng tomon) */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* HEADER (Tepa qism) */}
         <header className="h-16 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex items-center justify-between px-6 shadow-sm z-10">
           <div className="flex items-center gap-4">
             <button
@@ -210,7 +198,6 @@ export default function AdminLayout({
               <PanelLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             </button>
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
-              {/* Hozirgi sahifa nomini topib qo'yish */}
               {menuItems.find((i) => i.href === pathname)?.name ||
                 bottomItems.find((i) => i.href === pathname)?.name ||
                 "Dashboard"}
@@ -218,7 +205,6 @@ export default function AdminLayout({
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Dark Mode Toggle */}
             <Button
               variant="ghost"
               size="icon"
@@ -228,7 +214,7 @@ export default function AdminLayout({
               <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
 
-            {/* User Profile (Shu qismga ma'lumotlar qo'yildi) */}
+         
             <div className="flex items-center gap-3 border-l pl-4 dark:border-slate-700 cursor-pointer">
               <div className="text-right hidden md:block">
                 <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">
@@ -238,10 +224,8 @@ export default function AdminLayout({
                   {userData.role}
                 </p>
               </div>
-              <Avatar className="w-10 h-10 border border-slate-200 dark:border-slate-700">
-                {/* Rasm bo'lsa uni ko'rsatadi, yo'q bo'lsa default rasm */}
+              <Avatar className="w-10 h-10 border border-slate-200 dark:border-slate-700">              
                 <AvatarImage src={userData.image} alt="User Avatar" />
-                {/* Rasm yuklanmasa ismining birinchi harfini ko'rsatadi */}
                 <AvatarFallback className="bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold">
                   {userData.name.charAt(0).toUpperCase()}
                 </AvatarFallback>
@@ -250,7 +234,6 @@ export default function AdminLayout({
           </div>
         </header>
 
-        {/* CONTENT (Sahifa mazmuni) */}
         <main className="flex-1 overflow-auto p-6 bg-gray-50 dark:bg-slate-950">
           {children}
         </main>

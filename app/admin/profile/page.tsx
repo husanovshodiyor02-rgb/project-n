@@ -42,7 +42,6 @@ const Profile = () => {
     }
   }, []);
 
-  // Rasm yuklash funksiyasi
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -63,15 +62,12 @@ const Profile = () => {
         }
       );
 
-      // Backenddan qaytgan javobni olamiz
       const backendData =
         response.data?.user || response.data?.data || response.data;
 
-      // Yangi rasm manzilini aniqlaymiz
       const newImageUrl =
         backendData?.image || response.data?.image || user?.image;
 
-      // Eski user ma'lumotlariga faqat rasmni qo'shamiz
       const updatedUser = {
         ...user,
         ...(typeof backendData === "object" ? backendData : {}),
@@ -89,7 +85,6 @@ const Profile = () => {
     }
   };
 
-  // Ma'lumotlarni yangilash funksiyasi
   const handleInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
@@ -106,15 +101,13 @@ const Profile = () => {
         }
       );
 
-      // Backenddan qaytgan javobni olamiz
       const backendData =
         response.data?.user || response.data?.data || response.data;
 
-      // Eski user ma'lumotlariga yangi kiritilgan formani birlashtiramiz
       const updatedUser = {
-        ...user, // Eskidan bor bo'lgan ma'lumotlar (rasm, id, rol, createdAt)
-        ...formData, // Biz hozirgina o'zgartirgan ism, familiya, email
-        ...(typeof backendData === "object" ? backendData : {}), // Backend yangi nimadir qaytargan bo'lsa, qo'shamiz
+        ...user,
+        ...formData,
+        ...(typeof backendData === "object" ? backendData : {}),
       };
 
       localStorage.setItem("user", JSON.stringify(updatedUser));
@@ -137,10 +130,8 @@ const Profile = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20 font-sans text-gray-900 dark:text-gray-100 transition-colors">
-      {/* YUQORI QISM: FOYDALANUVCHI KARTOCHKASI */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm transition-colors">
         <div className="flex items-center gap-6">
-          {/* Avatar qismi */}
           <div className="relative w-max shrink-0">
             <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center relative transition-colors">
               {isUploading && (
@@ -159,7 +150,6 @@ const Profile = () => {
               )}
             </div>
 
-            {/* Kamera tugmasi */}
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
@@ -176,7 +166,6 @@ const Profile = () => {
             />
           </div>
 
-          {/* Ism va ma'lumotlar */}
           <div className="flex flex-col gap-1">
             <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white transition-colors">
               {user?.first_name} {user?.last_name}
@@ -194,13 +183,11 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Rol (Badge) */}
         <div className="bg-[#e11d48] text-white px-3 py-1 md:px-4 md:py-1.5 rounded-full text-xs md:text-sm font-medium tracking-wide">
           {user?.role || "manager"}
         </div>
       </div>
 
-      {/* PASTKI QISM: MA'LUMOTLARNI TAHRIRLASH */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 md:p-8 shadow-sm transition-colors">
         <div className="mb-6 md:mb-8">
           <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white transition-colors">
@@ -213,7 +200,6 @@ const Profile = () => {
 
         <form onSubmit={handleInfoSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-            {/* Ism */}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
                 Ism
@@ -229,7 +215,6 @@ const Profile = () => {
               />
             </div>
 
-            {/* Familiya */}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
                 Familiya
@@ -245,7 +230,6 @@ const Profile = () => {
               />
             </div>
 
-            {/* Email */}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
                 Email
@@ -261,7 +245,6 @@ const Profile = () => {
               />
             </div>
 
-            {/* Rol */}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
                 Rol
@@ -275,7 +258,6 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Tugmalar */}
           <div className="flex flex-col sm:flex-row justify-end gap-4 mt-10">
             <button
               type="button"
